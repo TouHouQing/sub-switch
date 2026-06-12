@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.4'
+        default: 'v3.16.5'
 
 permissions:
   contents: write
@@ -113,6 +113,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify create-dmg availability
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: npx --yes create-dmg@8.1.0 --help >/dev/null
+
       - name: Disable updater signing for downloadable packages
         shell: bash
         run: |
@@ -123,8 +128,9 @@ jobs:
           EOF
           echo "TAURI_RELEASE_CONFIG=$overlay" >> "$GITHUB_ENV"
 
-      - name: Verify macOS signing secrets
+      - name: Detect macOS signing mode
         if: matrix.platform == 'macos'
+        id: macos-signing
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -140,13 +146,16 @@ jobs:
               missing+=("$name")
             fi
           done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing macOS signing/notarization secrets: %s\n' "${missing[*]}" >&2
-            echo "macOS Gatekeeper will show 'Apple could not verify this app is free of malware' unless the app is Developer ID signed and Apple notarized." >&2
-            exit 1
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "macOS Developer ID signing and notarization are enabled."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            printf 'macOS Developer ID signing and notarization are disabled. Missing secrets: %s\n' "${missing[*]}" >&2
+            echo "The release will publish an unsigned drag-to-Applications DMG and an installer script that removes the quarantine attribute after installing." >&2
           fi
 
-      - name: Build macOS app
+      - name: Build macOS app bundle
         if: matrix.platform == 'macos'
         shell: bash
         env:
@@ -155,7 +164,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$TAURI_RELEASE_CONFIG"
+        run: pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG"
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
@@ -174,24 +183,29 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
           app_path=$(find src-tauri/target -path '*/release/bundle/macos/*.app' -type d | head -1 || true)
-          dmg_path=$(find src-tauri/target -path '*/release/bundle/dmg/*.dmg' -type f | head -1 || true)
           if [ -z "$app_path" ]; then
             echo "No macOS .app bundle found" >&2
             find src-tauri/target -maxdepth 6 -type f -o -type d | sed -n '1,200p'
             exit 1
           fi
-          if [ -z "$dmg_path" ]; then
-            echo "No macOS .dmg bundle found" >&2
-            find src-tauri/target -maxdepth 6 -type f | sed -n '1,200p'
+          if [ "${{ steps.macos-signing.outputs.enabled }}" = "true" ]; then
+            codesign --verify --deep --strict --verbose=2 "$app_path"
+            spctl -a -vvv -t exec "$app_path"
+            xcrun stapler validate "$app_path"
+          else
+            echo "Skipping Developer ID, notarization, and Gatekeeper verification for unsigned macOS build."
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "release-assets/THQ-Switch-${RELEASE_TAG}-macOS.zip"
+          npx --yes create-dmg@8.1.0 "$app_path" "$RUNNER_TEMP" --overwrite --no-version-in-filename --dmg-title "THQ Switch" --no-code-sign
+          dmg_path="$RUNNER_TEMP/THQ Switch.dmg"
+          if [ ! -f "$dmg_path" ]; then
+            echo "create-dmg did not produce the expected DMG at $dmg_path" >&2
+            find "$RUNNER_TEMP" -maxdepth 2 -name '*.dmg' -type f -print
             exit 1
           fi
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          spctl -a -vvv -t exec "$app_path"
-          xcrun stapler validate "$app_path"
-          codesign --verify --verbose=2 "$dmg_path"
-          spctl -a -vvv -t open --context context:primary-signature "$dmg_path"
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" "release-assets/THQ-Switch-${RELEASE_TAG}-macOS.zip"
           cp "$dmg_path" "release-assets/THQ-Switch-${RELEASE_TAG}-macOS.dmg"
+          sed "s/__THQ_SWITCH_RELEASE_TAG__/${RELEASE_TAG}/g" scripts/install-macos.sh > "release-assets/THQ-Switch-${RELEASE_TAG}-install-macos.sh"
+          chmod +x "release-assets/THQ-Switch-${RELEASE_TAG}-install-macos.sh"
           ls -la release-assets
 
       - name: Collect Windows assets
@@ -276,11 +290,13 @@ jobs:
 
             ### 下载
 
-            - **macOS**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.zip`（Developer ID 签名并完成 Apple 公证）
+            - **macOS 一键安装**: `curl -fsSL https://github.com/TouHouQing/sub-switch/releases/download/${{ env.RELEASE_TAG }}/THQ-Switch-${{ env.RELEASE_TAG }}-install-macos.sh | bash`
+            - **macOS 拖拽安装**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg`（create-dmg 生成，打开后拖入 Applications）
+            - **macOS ZIP**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.zip`
             - **Windows**: `THQ-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
             - **Linux x86_64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
             - **Linux ARM64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            macOS 包会在发布前校验 Developer ID 签名、Apple 公证 ticket 和 Gatekeeper assessment，避免出现 “Apple could not verify this app is free of malware” 拦截。
+            说明：如果仓库配置了 Apple Developer ID 签名和公证 secrets，macOS App 会在发布前校验签名、公证 ticket 和 Gatekeeper assessment。未配置时会发布 unsigned 版本；DMG 可以拖拽安装，但浏览器下载后直接双击 App 仍可能触发 Gatekeeper。上面的一键安装脚本会安装到 `/Applications` 并移除 quarantine 标记，方便无 Apple 账号场景下打开。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
