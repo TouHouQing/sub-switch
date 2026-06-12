@@ -1,0 +1,10 @@
+export const GATEWAY_ORIGIN = "https://sub.tohoqing.com";
+export const GATEWAY_MANAGEMENT_BASE_URL = `${GATEWAY_ORIGIN}/api/v1`;
+export const GATEWAY_MODEL_BASE_URL = `${GATEWAY_ORIGIN}/v1`;
+export const GATEWAY_SESSION_STORAGE_KEY = "thq-gateway-session-v1";
+export const GATEWAY_SELECTED_KEY_STORAGE_KEY = "thq-gateway-selected-key-id";
+export const GATEWAY_PROVIDER_ID = "thq-gateway";
+export const GATEWAY_PROVIDER_NAME = "THQ Gateway";
+export const GATEWAY_DEFAULT_MODEL = "gpt-5.5";
+export const GATEWAY_DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+export const GATEWAY_DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
