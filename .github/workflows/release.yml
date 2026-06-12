@@ -155,8 +155,8 @@ jobs:
             echo "The release will publish an unsigned drag-to-Applications DMG and an installer script that removes the quarantine attribute after installing." >&2
           fi
 
-      - name: Build macOS app bundle
-        if: matrix.platform == 'macos'
+      - name: Build signed macOS app bundle
+        if: matrix.platform == 'macos' && steps.macos-signing.outputs.enabled == 'true'
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -165,6 +165,14 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG"
+
+      - name: Build unsigned macOS app bundle
+        if: matrix.platform == 'macos' && steps.macos-signing.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG"
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
