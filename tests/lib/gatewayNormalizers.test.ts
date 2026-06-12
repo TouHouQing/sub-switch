@@ -44,6 +44,27 @@ describe("normalizeGatewayStats", () => {
       totalRequests: 66000,
     });
   });
+
+  it("normalizes the official dashboard cost field names", () => {
+    expect(
+      normalizeGatewayStats({
+        data: {
+          today_actual_cost: 1.2345,
+          total_actual_cost: 98.7654,
+          today_tokens: 12000,
+          today_requests: 12,
+          total_requests: 345,
+        },
+      }),
+    ).toEqual({
+      balance: 0,
+      todayUsage: 1.2345,
+      todayTokens: 12000,
+      totalUsage: 98.7654,
+      todayRequests: 12,
+      totalRequests: 345,
+    });
+  });
 });
 
 describe("normalizeGatewayKeys", () => {
@@ -116,6 +137,43 @@ describe("normalizeGatewayUsageRecords", () => {
         model: undefined,
         apiKeyName: undefined,
         status: undefined,
+      },
+    ]);
+  });
+
+  it("normalizes official usage records with nested API key data", () => {
+    expect(
+      normalizeGatewayUsageRecords({
+        data: {
+          items: [
+            {
+              id: 1001,
+              input_tokens: 3000,
+              output_tokens: 700,
+              cache_read_tokens: 50,
+              cache_creation_tokens: 25,
+              actual_cost: "0.012345",
+              total_cost: "0.024690",
+              created_at: "2026-06-12T10:00:00Z",
+              model: "gpt-5.5",
+              api_key: { name: "Main" },
+              status: "success",
+            },
+          ],
+          total: 1,
+        },
+      }),
+    ).toEqual([
+      {
+        id: "1001",
+        promptTokens: 3000,
+        completionTokens: 700,
+        totalTokens: 3775,
+        cost: 0.012345,
+        createdAt: "2026-06-12T10:00:00Z",
+        model: "gpt-5.5",
+        apiKeyName: "Main",
+        status: "success",
       },
     ]);
   });
@@ -231,6 +289,58 @@ describe("normalizeGatewayModels", () => {
 });
 
 describe("normalizeGatewayPaymentChannels", () => {
+  it("normalizes official checkout method maps", () => {
+    expect(
+      normalizeGatewayPaymentChannels({
+        data: {
+          methods: {
+            alipay: {
+              available: true,
+              single_min: 5,
+              single_max: 200,
+              fee_rate: 1.5,
+              currency: "CNY",
+            },
+            wxpay: { available: false, single_min: 10 },
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        id: "alipay",
+        name: "alipay",
+        enabled: true,
+        minAmount: 5,
+        maxAmount: 200,
+        feeRate: 1.5,
+        currency: "CNY",
+      },
+      {
+        id: "wxpay",
+        name: "wxpay",
+        enabled: false,
+        minAmount: 10,
+        maxAmount: undefined,
+        feeRate: undefined,
+        currency: undefined,
+      },
+    ]);
+  });
+
+  it("uses official payment method type fields as the channel id", () => {
+    expect(
+      normalizeGatewayPaymentChannels({
+        data: [
+          { type: "alipay", name: "Alipay", available: true },
+          { payment_type: "wxpay", title: "WeChat Pay", available: false },
+        ],
+      }),
+    ).toEqual([
+      { id: "alipay", name: "Alipay", enabled: true },
+      { id: "wxpay", name: "WeChat Pay", enabled: false },
+    ]);
+  });
+
   it("treats disabled status as enabled false", () => {
     expect(
       normalizeGatewayPaymentChannels({
@@ -257,6 +367,36 @@ describe("normalizeGatewayOrders", () => {
         createdAt: undefined,
         paidAt: undefined,
         paymentUrl: undefined,
+      },
+    ]);
+  });
+
+  it("normalizes official paginated order and payment link aliases", () => {
+    expect(
+      normalizeGatewayOrders({
+        data: {
+          items: [
+            {
+              order_id: 88,
+              out_trade_no: "THQ202606120001",
+              actual_amount: "20.5",
+              status: "PENDING",
+              created_at: "2026-06-12T11:00:00Z",
+              pay_url: "https://pay.example/checkout",
+            },
+          ],
+          total: 1,
+        },
+      }),
+    ).toEqual([
+      {
+        id: "88",
+        amount: 20.5,
+        orderNo: "THQ202606120001",
+        status: "PENDING",
+        createdAt: "2026-06-12T11:00:00Z",
+        paidAt: undefined,
+        paymentUrl: "https://pay.example/checkout",
       },
     ]);
   });

@@ -1,5 +1,6 @@
 import {
   GATEWAY_MANAGEMENT_BASE_URL,
+  GATEWAY_ORIGIN,
   GATEWAY_MODEL_BASE_URL,
 } from "@/lib/gateway/constants";
 import {
@@ -16,9 +17,11 @@ import {
   normalizeGatewayPaymentPlans,
   normalizeGatewayStats,
   normalizeGatewayUsageRecords,
+  normalizeGatewayUser,
 } from "@/lib/gateway/normalizers";
 import type {
   GatewayApiKey,
+  GatewayCreatePaymentOrderInput,
   GatewayDashboardStats,
   GatewayModel,
   GatewayOrder,
@@ -83,19 +86,6 @@ const numberField = (
   return undefined;
 };
 
-const normalizeUser = (value: unknown): GatewayUser | undefined => {
-  const record = isRecord(value) ? value : {};
-  const id = stringField(record, ["id", "user_id", "uuid"]);
-  if (!id) return undefined;
-  return {
-    id,
-    email: stringField(record, ["email"]),
-    username: stringField(record, ["username", "name"]),
-    displayName: stringField(record, ["display_name", "displayName", "nickname"]),
-    avatarUrl: stringField(record, ["avatar_url", "avatarUrl"]),
-  };
-};
-
 const readExpiresAt = (record: Record<string, unknown>): number => {
   const absolute = numberField(record, ["expiresAt", "expires_at"]);
   if (absolute !== undefined) {
@@ -133,8 +123,40 @@ const normalizeSession = (
     accessToken,
     refreshToken,
     expiresAt: readExpiresAt(record),
-    user: normalizeUser(record.user),
+    user: normalizeGatewayUser(record.user),
   };
+};
+
+const normalizePaymentType = (value: string): string => {
+  const normalized = value.trim();
+  const aliases: Record<string, string> = {
+    alipay_direct: "alipay",
+    wxpay_direct: "wxpay",
+  };
+  return aliases[normalized] ?? normalized;
+};
+
+const buildPaymentOrderPayload = (
+  input: GatewayCreatePaymentOrderInput,
+): Record<string, unknown> => {
+  const paymentType = normalizePaymentType(input.paymentType);
+  const origin = (input.origin ?? GATEWAY_ORIGIN).trim().replace(/\/+$/, "");
+  const isMobile =
+    input.forceQRCode && paymentType === "alipay" ? false : (input.isMobile ?? false);
+  const payload: Record<string, unknown> = {
+    amount: input.amount,
+    payment_type: paymentType,
+    order_type: input.orderType ?? (input.planId ? "subscription" : "balance"),
+    is_mobile: isMobile,
+    payment_source:
+      paymentType === "wxpay" && input.isWechatBrowser
+        ? "wechat_in_app_resume"
+        : "hosted_redirect",
+  };
+
+  if (input.planId) payload.plan_id = input.planId;
+  if (origin) payload.return_url = `${origin}/payment/result`;
+  return payload;
 };
 
 export class GatewayApiClient {
@@ -183,11 +205,11 @@ export class GatewayApiClient {
   }
 
   async me(): Promise<GatewayUser | undefined> {
-    return normalizeUser(unwrapData(await this.managementRequest("/auth/me")));
+    return this.profile();
   }
 
-  async profile(): Promise<unknown> {
-    return this.managementRequest("/user/profile");
+  async profile(): Promise<GatewayUser | undefined> {
+    return normalizeGatewayUser(await this.managementRequest("/user/profile"));
   }
 
   async keys(): Promise<GatewayApiKey[]> {
@@ -209,9 +231,14 @@ export class GatewayApiClient {
   }
 
   async dashboardStats(): Promise<GatewayDashboardStats> {
-    return normalizeGatewayStats(
+    const stats = normalizeGatewayStats(
       await this.managementRequest("/usage/dashboard/stats"),
     );
+    const profile = await this.profile();
+    return {
+      ...stats,
+      balance: profile?.balance ?? stats.balance,
+    };
   }
 
   async availableModels(): Promise<GatewayModel[]> {
@@ -252,18 +279,19 @@ export class GatewayApiClient {
   }
 
   async paymentChannels(): Promise<GatewayPaymentChannel[]> {
-    return normalizeGatewayPaymentChannels(
-      await this.managementRequest("/payment/channels"),
+    const checkoutChannels = normalizeGatewayPaymentChannels(
+      await this.managementRequest("/payment/checkout-info"),
     );
+    if (checkoutChannels.length > 0) return checkoutChannels;
+    return normalizeGatewayPaymentChannels(await this.managementRequest("/payment/channels"));
   }
 
   async createPaymentOrder(
-    planId: string,
-    channelId: string,
+    input: GatewayCreatePaymentOrderInput,
   ): Promise<GatewayOrder> {
     const response = await this.managementRequest("/payment/orders", {
       method: "POST",
-      body: JSON.stringify({ plan_id: planId, channel_id: channelId }),
+      body: JSON.stringify(buildPaymentOrderPayload(input)),
     });
     const [order] = normalizeGatewayOrders({ data: [unwrapData(response)] });
     if (!order) throw new Error("Gateway order response is empty");

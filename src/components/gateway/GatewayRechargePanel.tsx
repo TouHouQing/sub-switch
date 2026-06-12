@@ -4,25 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatGatewayNumber } from "@/components/gateway/format";
 import type {
+  GatewayCreatePaymentOrderInput,
   GatewayOrder,
   GatewayPaymentChannel,
-  GatewayPaymentPlan,
 } from "@/types/gateway";
 
+const RECHARGE_AMOUNTS = [10, 20, 50, 100, 200, 500] as const;
+
 interface GatewayRechargePanelProps {
-  plans: GatewayPaymentPlan[];
   channels: GatewayPaymentChannel[];
   loading: boolean;
   isCreatingOrder: boolean;
   onCreateOrder: (
-    planId: string,
-    channelId: string,
+    input: GatewayCreatePaymentOrderInput,
   ) => Promise<GatewayOrder | void> | GatewayOrder | void;
   onOpenExternal: (url: string) => void;
 }
 
 export function GatewayRechargePanel({
-  plans,
   channels,
   loading,
   isCreatingOrder,
@@ -33,20 +32,33 @@ export function GatewayRechargePanel({
     () => channels.filter((channel) => channel.enabled),
     [channels],
   );
-  const [planId, setPlanId] = useState("");
+  const [amount, setAmount] = useState<number>(RECHARGE_AMOUNTS[1]);
   const [channelId, setChannelId] = useState("");
+  const selectedChannel = useMemo(
+    () => enabledChannels.find((channel) => channel.id === channelId) ?? null,
+    [channelId, enabledChannels],
+  );
 
   useEffect(() => {
-    setPlanId((current) => current || plans[0]?.id || "");
-  }, [plans]);
-
-  useEffect(() => {
-    setChannelId((current) => current || enabledChannels[0]?.id || "");
+    setChannelId((current) =>
+      enabledChannels.some((channel) => channel.id === current)
+        ? current
+        : enabledChannels[0]?.id || "",
+    );
   }, [enabledChannels]);
 
+  const amountAllowed = !selectedChannel
+    ? false
+    : (!selectedChannel.minAmount || amount >= selectedChannel.minAmount) &&
+      (!selectedChannel.maxAmount || amount <= selectedChannel.maxAmount);
+
   const handleCreateOrder = async () => {
-    if (!planId || !channelId) return;
-    const order = await onCreateOrder(planId, channelId);
+    if (!selectedChannel || !amountAllowed) return;
+    const order = await onCreateOrder({
+      amount,
+      paymentType: selectedChannel.id,
+      orderType: "balance",
+    });
     if (order?.paymentUrl) {
       onOpenExternal(order.paymentUrl);
     }
@@ -64,21 +76,21 @@ export function GatewayRechargePanel({
 
       {loading ? (
         <div className="mt-4 h-32 animate-pulse rounded-md bg-muted" />
-      ) : plans.length === 0 || enabledChannels.length === 0 ? (
+      ) : enabledChannels.length === 0 ? (
         <div className="mt-4 rounded-md border border-dashed border-border-default bg-muted/30 p-4 text-sm text-muted-foreground">
-          暂无可用充值方案
+          暂无可用充值渠道
         </div>
       ) : (
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <select
               className="h-9 rounded-md border border-border-default bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-              value={planId}
-              onChange={(event) => setPlanId(event.target.value)}
+              value={String(amount)}
+              onChange={(event) => setAmount(Number(event.target.value))}
             >
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} · {formatGatewayNumber(plan.amount)}
+              {RECHARGE_AMOUNTS.map((value) => (
+                <option key={value} value={value}>
+                  {formatGatewayNumber(value)}
                 </option>
               ))}
             </select>
@@ -98,11 +110,19 @@ export function GatewayRechargePanel({
             type="button"
             className="w-full"
             onClick={() => void handleCreateOrder()}
-            disabled={!planId || !channelId || isCreatingOrder}
+            disabled={!selectedChannel || !amountAllowed || isCreatingOrder}
           >
             <CreditCard className="h-4 w-4" />
             {isCreatingOrder ? "创建订单中..." : "充值"}
           </Button>
+          {!amountAllowed && selectedChannel ? (
+            <p className="text-xs text-amber-600 dark:text-amber-300">
+              当前渠道支持 {formatGatewayNumber(selectedChannel.minAmount ?? 0)} -{" "}
+              {selectedChannel.maxAmount
+                ? formatGatewayNumber(selectedChannel.maxAmount)
+                : "不限"}
+            </p>
+          ) : null}
         </div>
       )}
     </section>

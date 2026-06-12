@@ -53,6 +53,46 @@ describe("GatewayApiClient", () => {
     );
   });
 
+  it("loads the user profile from the official profile endpoint", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          id: 42,
+          email: "owner@tohoqing.com",
+          username: "owner",
+          balance: 123.45,
+        },
+      }),
+    );
+
+    const profile = await client.profile();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/user/profile",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer access-1",
+        }),
+      }),
+    );
+    expect(profile).toMatchObject({
+      id: "42",
+      email: "owner@tohoqing.com",
+      username: "owner",
+      balance: 123.45,
+    });
+  });
+
+  it("uses the official profile endpoint for me()", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { id: 42 } }));
+
+    await client.me();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://sub.tohoqing.com/api/v1/user/profile",
+    );
+  });
+
   it("uses the model base URL and provided API key for model requests", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: [] }));
 
@@ -67,6 +107,155 @@ describe("GatewayApiClient", () => {
       }),
     );
     expect(fetchMock.mock.calls[0]?.[0]).not.toContain("/api/v1");
+  });
+
+  it("merges profile balance into dashboard stats", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            today_actual_cost: 1.5,
+            total_actual_cost: 9.25,
+            today_tokens: 1000,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            id: 42,
+            balance: 123.45,
+          },
+        }),
+      );
+
+    await expect(client.dashboardStats()).resolves.toMatchObject({
+      balance: 123.45,
+      todayUsage: 1.5,
+      totalUsage: 9.25,
+      todayTokens: 1000,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://sub.tohoqing.com/api/v1/usage/dashboard/stats",
+      expect.any(Object),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://sub.tohoqing.com/api/v1/user/profile",
+      expect.any(Object),
+    );
+  });
+
+  it("creates payment orders with the official checkout payload", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          order_id: 88,
+          amount: 20,
+          pay_url: "https://pay.example/checkout",
+        },
+      }),
+    );
+
+    await expect(
+      client.createPaymentOrder({
+        planId: "plan-1",
+        amount: 20,
+        paymentType: "alipay",
+        orderType: "subscription",
+      }),
+    ).resolves.toMatchObject({
+      id: "88",
+      amount: 20,
+      paymentUrl: "https://pay.example/checkout",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/payment/orders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          amount: 20,
+          payment_type: "alipay",
+          order_type: "subscription",
+          is_mobile: false,
+          payment_source: "hosted_redirect",
+          plan_id: "plan-1",
+          return_url: "https://sub.tohoqing.com/payment/result",
+        }),
+      }),
+    );
+  });
+
+  it("creates balance recharge orders without subscription plan ids", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          order_id: 89,
+          amount: 50,
+          pay_url: "https://pay.example/recharge",
+        },
+      }),
+    );
+
+    await expect(
+      client.createPaymentOrder({
+        amount: 50,
+        paymentType: "alipay_direct",
+        orderType: "balance",
+      }),
+    ).resolves.toMatchObject({
+      id: "89",
+      amount: 50,
+      paymentUrl: "https://pay.example/recharge",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/payment/orders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          amount: 50,
+          payment_type: "alipay",
+          order_type: "balance",
+          is_mobile: false,
+          payment_source: "hosted_redirect",
+          return_url: "https://sub.tohoqing.com/payment/result",
+        }),
+      }),
+    );
+    expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain("plan_id");
+  });
+
+  it("loads payment channels from the official checkout info endpoint", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          methods: {
+            alipay: { available: true, single_min: 10 },
+          },
+        },
+      }),
+    );
+
+    await expect(client.paymentChannels()).resolves.toEqual([
+      {
+        id: "alipay",
+        name: "alipay",
+        enabled: true,
+        minAmount: 10,
+        maxAmount: undefined,
+        feeRate: undefined,
+        currency: undefined,
+      },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/payment/checkout-info",
+      expect.any(Object),
+    );
   });
 
   it("refreshes once after a management 401 and retries the original request", async () => {

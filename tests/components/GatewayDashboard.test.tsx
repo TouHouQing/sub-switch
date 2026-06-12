@@ -50,7 +50,6 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     usageLoading: false,
     orders: [],
     ordersLoading: false,
-    plans: [],
     channels: [],
     paymentsLoading: false,
     isApplyingToolConfig: false,

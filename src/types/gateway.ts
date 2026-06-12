@@ -4,6 +4,7 @@ export type GatewayUser = {
   username?: string;
   displayName?: string;
   avatarUrl?: string;
+  balance?: number;
 };
 
 export type GatewaySession = {
@@ -64,6 +65,21 @@ export type GatewayPaymentChannel = {
   id: string;
   name: string;
   enabled: boolean;
+  minAmount?: number;
+  maxAmount?: number;
+  feeRate?: number;
+  currency?: string;
+};
+
+export type GatewayCreatePaymentOrderInput = {
+  amount: number;
+  paymentType: string;
+  orderType?: "balance" | "subscription";
+  planId?: string;
+  origin?: string;
+  isMobile?: boolean;
+  isWechatBrowser?: boolean;
+  forceQRCode?: boolean;
 };
 
 export type GatewayOrder = {

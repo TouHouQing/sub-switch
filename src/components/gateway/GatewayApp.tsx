@@ -14,7 +14,6 @@ import {
   useGatewayModelsQuery,
   useGatewayOrdersQuery,
   useGatewayPaymentChannelsQuery,
-  useGatewayPaymentPlansQuery,
   useGatewayRegisterMutation,
   useGatewaySelectKeyMutation,
   useGatewaySessionQuery,
@@ -58,7 +57,6 @@ export function GatewayApp({
   const modelsQuery = useGatewayModelsQuery(hasSession, selectedKey?.secret);
   const usageQuery = useGatewayUsageQuery(hasSession);
   const ordersQuery = useGatewayOrdersQuery(hasSession);
-  const plansQuery = useGatewayPaymentPlansQuery(hasSession);
   const channelsQuery = useGatewayPaymentChannelsQuery(hasSession);
 
   const handleLogin = async (credentials: GatewayAuthCredentials) => {
@@ -173,9 +171,8 @@ export function GatewayApp({
       usageLoading={usageQuery.isLoading}
       orders={ordersQuery.data ?? []}
       ordersLoading={ordersQuery.isLoading}
-      plans={plansQuery.data ?? []}
       channels={channelsQuery.data ?? []}
-      paymentsLoading={plansQuery.isLoading || channelsQuery.isLoading}
+      paymentsLoading={channelsQuery.isLoading}
       isApplyingToolConfig={isApplyingToolConfig}
       isCreatingKey={createKeyMutation.isPending}
       isCreatingOrder={createOrderMutation.isPending}
@@ -184,9 +181,7 @@ export function GatewayApp({
       onCreateKey={() => void handleCreateKey()}
       onSelectKey={(keyId) => void selectKeyMutation.mutateAsync(keyId)}
       onDeleteKey={(keyId) => void handleDeleteKey(keyId)}
-      onCreateOrder={(planId, channelId) =>
-        createOrderMutation.mutateAsync({ planId, channelId })
-      }
+      onCreateOrder={(input) => createOrderMutation.mutateAsync(input)}
       onOpenExternal={(url) => void handleOpenExternal(url)}
       onLogout={() => void handleLogout()}
       onOpenAdvancedProviders={onOpenAdvancedProviders}

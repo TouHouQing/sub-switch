@@ -7,6 +7,7 @@ import {
   saveGatewaySelectedKeyId,
 } from "@/lib/gateway/keySelection";
 import { loadGatewaySession } from "@/lib/gateway/session";
+import type { GatewayCreatePaymentOrderInput } from "@/types/gateway";
 
 const gatewayModelsScopeKey = (apiKey?: string): string => {
   if (!apiKey) return "available";
@@ -215,8 +216,8 @@ export function useGatewayPaymentChannelsQuery(enabled = true) {
 export function useGatewayCreatePaymentOrderMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ planId, channelId }: { planId: string; channelId: string }) =>
-      gatewayApiClient.createPaymentOrder(planId, channelId),
+    mutationFn: (input: GatewayCreatePaymentOrderInput) =>
+      gatewayApiClient.createPaymentOrder(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.orders() });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.stats() });

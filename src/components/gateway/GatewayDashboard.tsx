@@ -11,12 +11,12 @@ import type { AppId } from "@/lib/api";
 import type { VisibleApps } from "@/types";
 import type {
   GatewayApiKey,
+  GatewayCreatePaymentOrderInput,
   GatewayDashboardStats,
   GatewayKeySelection,
   GatewayModel,
   GatewayOrder,
   GatewayPaymentChannel,
-  GatewayPaymentPlan,
   GatewayUsageRecord,
 } from "@/types/gateway";
 
@@ -34,7 +34,6 @@ export interface GatewayDashboardProps {
   usageLoading: boolean;
   orders: GatewayOrder[];
   ordersLoading: boolean;
-  plans: GatewayPaymentPlan[];
   channels: GatewayPaymentChannel[];
   paymentsLoading: boolean;
   isApplyingToolConfig: boolean;
@@ -46,8 +45,7 @@ export interface GatewayDashboardProps {
   onSelectKey: (keyId: string) => void;
   onDeleteKey: (keyId: string) => void;
   onCreateOrder: (
-    planId: string,
-    channelId: string,
+    input: GatewayCreatePaymentOrderInput,
   ) => Promise<GatewayOrder | void> | GatewayOrder | void;
   onOpenExternal: (url: string) => void;
   onLogout: () => void;
@@ -68,7 +66,6 @@ export function GatewayDashboard({
   usageLoading,
   orders,
   ordersLoading,
-  plans,
   channels,
   paymentsLoading,
   isApplyingToolConfig,
@@ -152,7 +149,6 @@ export function GatewayDashboard({
               onDeleteKey={onDeleteKey}
             />
             <GatewayRechargePanel
-              plans={plans}
               channels={channels}
               loading={paymentsLoading}
               isCreatingOrder={isCreatingOrder}
