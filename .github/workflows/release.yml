@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.2'
+        default: 'v3.16.3'
 
 permissions:
   contents: write
@@ -123,39 +123,10 @@ jobs:
           EOF
           echo "TAURI_RELEASE_CONFIG=$overlay" >> "$GITHUB_ENV"
 
-      - name: Verify macOS signing secrets
-        if: matrix.platform == 'macos'
-        shell: bash
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          missing=()
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            if [ -z "${!name:-}" ]; then
-              missing+=("$name")
-            fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing macOS signing/notarization secrets: %s\n' "${missing[*]}" >&2
-            echo "A downloadable macOS release must be signed with a Developer ID Application certificate and notarized by Apple." >&2
-            exit 1
-          fi
-
       - name: Build macOS app
         if: matrix.platform == 'macos'
         shell: bash
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$TAURI_RELEASE_CONFIG"
+        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$TAURI_RELEASE_CONFIG" --skip-stapling
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
@@ -185,10 +156,6 @@ jobs:
             find src-tauri/target -maxdepth 6 -type f | sed -n '1,200p'
             exit 1
           fi
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          spctl -a -vvv -t exec "$app_path"
-          xcrun stapler validate "$dmg_path"
-          spctl -a -vvv -t open --context context:primary-signature "$dmg_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" "release-assets/CC-Switch-${RELEASE_TAG}-macOS.zip"
           cp "$dmg_path" "release-assets/CC-Switch-${RELEASE_TAG}-macOS.dmg"
           ls -la release-assets
@@ -275,11 +242,23 @@ jobs:
 
             ### 下载
 
-            - **macOS**: `CC-Switch-${{ env.RELEASE_TAG }}-macOS.dmg` 或 `CC-Switch-${{ env.RELEASE_TAG }}-macOS.zip`（Developer ID 签名并完成 Apple 公证）
+            - **macOS**: `CC-Switch-${{ env.RELEASE_TAG }}-macOS.dmg` 或 `CC-Switch-${{ env.RELEASE_TAG }}-macOS.zip`（unsigned，首次打开可能需要右键打开或移除 quarantine）
             - **Windows**: `CC-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `CC-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
             - **Linux x86_64**: `CC-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
             - **Linux ARM64**: `CC-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            这版没有配置 Tauri updater 签名，因此发布的是可下载安装包，不包含自动更新 `latest.json`。macOS 构建会在发布前校验签名、公证和 stapling，避免上传被 Gatekeeper 拦截的包。
+            这版没有配置 Tauri updater 签名和 Apple Developer ID 公证，因此发布的是 unsigned 可下载安装包，不包含自动更新 `latest.json`。
+
+            macOS 如果提示“已损坏”或无法打开，可在终端执行：
+
+            ```bash
+            xattr -dr com.apple.quarantine ~/Downloads/CC-Switch-${{ env.RELEASE_TAG }}-macOS.dmg
+            ```
+
+            安装后如果 `.app` 仍被拦截：
+
+            ```bash
+            xattr -dr com.apple.quarantine "/Applications/CC Switch.app"
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
