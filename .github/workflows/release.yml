@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.3'
+        default: 'v3.16.4'
 
 permissions:
   contents: write
@@ -123,10 +123,39 @@ jobs:
           EOF
           echo "TAURI_RELEASE_CONFIG=$overlay" >> "$GITHUB_ENV"
 
+      - name: Verify macOS signing secrets
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing macOS signing/notarization secrets: %s\n' "${missing[*]}" >&2
+            echo "macOS Gatekeeper will show 'Apple could not verify this app is free of malware' unless the app is Developer ID signed and Apple notarized." >&2
+            exit 1
+          fi
+
       - name: Build macOS app
         if: matrix.platform == 'macos'
         shell: bash
-        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$TAURI_RELEASE_CONFIG" --skip-stapling
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$TAURI_RELEASE_CONFIG"
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
@@ -156,8 +185,13 @@ jobs:
             find src-tauri/target -maxdepth 6 -type f | sed -n '1,200p'
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" "release-assets/CC-Switch-${RELEASE_TAG}-macOS.zip"
-          cp "$dmg_path" "release-assets/CC-Switch-${RELEASE_TAG}-macOS.dmg"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl -a -vvv -t exec "$app_path"
+          xcrun stapler validate "$app_path"
+          codesign --verify --verbose=2 "$dmg_path"
+          spctl -a -vvv -t open --context context:primary-signature "$dmg_path"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "release-assets/THQ-Switch-${RELEASE_TAG}-macOS.zip"
+          cp "$dmg_path" "release-assets/THQ-Switch-${RELEASE_TAG}-macOS.dmg"
           ls -la release-assets
 
       - name: Collect Windows assets
@@ -171,15 +205,15 @@ jobs:
             Get-ChildItem -Path 'src-tauri/target' -Recurse | Select-Object -First 200 | Format-Table FullName
             throw 'No Windows MSI bundle found'
           }
-          Copy-Item $msi.FullName "release-assets/CC-Switch-$env:RELEASE_TAG-Windows.msi"
+          Copy-Item $msi.FullName "release-assets/THQ-Switch-$env:RELEASE_TAG-Windows.msi"
 
           $exe = Get-ChildItem -Path 'src-tauri/target' -Recurse -Filter 'cc-switch.exe' | Where-Object { $_.FullName -match '\\release\\' } | Select-Object -First 1
           if ($null -ne $exe) {
-            $portableDir = 'release-assets/CC-Switch-Portable'
+            $portableDir = 'release-assets/THQ-Switch-Portable'
             New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
             Copy-Item $exe.FullName $portableDir
-            Set-Content -Path (Join-Path $portableDir 'portable.ini') -Value @('# CC Switch portable build marker', 'portable=true') -Encoding UTF8
-            Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/CC-Switch-$env:RELEASE_TAG-Windows-Portable.zip" -Force
+            Set-Content -Path (Join-Path $portableDir 'portable.ini') -Value @('# THQ Switch portable build marker', 'portable=true') -Encoding UTF8
+            Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/THQ-Switch-$env:RELEASE_TAG-Windows-Portable.zip" -Force
             Remove-Item -Recurse -Force $portableDir
           }
           Get-ChildItem release-assets
@@ -198,9 +232,9 @@ jobs:
             find src-tauri/target -maxdepth 6 -type f | sed -n '1,200p'
             exit 1
           fi
-          cp "$appimage" "release-assets/CC-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.AppImage"
-          [ -n "$deb" ] && cp "$deb" "release-assets/CC-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.deb"
-          [ -n "$rpm" ] && cp "$rpm" "release-assets/CC-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.rpm"
+          cp "$appimage" "release-assets/THQ-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.AppImage"
+          [ -n "$deb" ] && cp "$deb" "release-assets/THQ-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.deb"
+          [ -n "$rpm" ] && cp "$rpm" "release-assets/THQ-Switch-${RELEASE_TAG}-Linux-${{ matrix.arch }}.rpm"
           ls -la release-assets
 
       - name: Upload build artifacts
@@ -230,7 +264,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: CC Switch ${{ env.RELEASE_TAG }} - THQ 中转站客户端
+          name: THQ Switch ${{ env.RELEASE_TAG }} - THQ 中转站客户端
           prerelease: true
           overwrite_files: true
           fail_on_unmatched_files: true
@@ -242,23 +276,11 @@ jobs:
 
             ### 下载
 
-            - **macOS**: `CC-Switch-${{ env.RELEASE_TAG }}-macOS.dmg` 或 `CC-Switch-${{ env.RELEASE_TAG }}-macOS.zip`（unsigned，首次打开可能需要右键打开或移除 quarantine）
-            - **Windows**: `CC-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `CC-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
-            - **Linux x86_64**: `CC-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-            - **Linux ARM64**: `CC-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
+            - **macOS**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.zip`（Developer ID 签名并完成 Apple 公证）
+            - **Windows**: `THQ-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
+            - **Linux x86_64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
+            - **Linux ARM64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            这版没有配置 Tauri updater 签名和 Apple Developer ID 公证，因此发布的是 unsigned 可下载安装包，不包含自动更新 `latest.json`。
-
-            macOS 如果提示“已损坏”或无法打开，可在终端执行：
-
-            ```bash
-            xattr -dr com.apple.quarantine ~/Downloads/CC-Switch-${{ env.RELEASE_TAG }}-macOS.dmg
-            ```
-
-            安装后如果 `.app` 仍被拦截：
-
-            ```bash
-            xattr -dr com.apple.quarantine "/Applications/CC Switch.app"
-            ```
+            macOS 包会在发布前校验 Developer ID 签名、Apple 公证 ticket 和 Gatekeeper assessment，避免出现 “Apple could not verify this app is free of malware” 拦截。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
