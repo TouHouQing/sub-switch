@@ -128,6 +128,36 @@ export function useGatewayCreateKeyMutation() {
   });
 }
 
+export function useGatewaySelectKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) => {
+      saveGatewaySelectedKeyId(keyId);
+      return Promise.resolve(keyId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.keySelection() });
+    },
+  });
+}
+
+export function useGatewayDeleteKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) => gatewayApiClient.deleteKey(keyId),
+    onSuccess: (_result, keyId) => {
+      if (loadGatewaySelectedKeyId() === keyId) {
+        clearStoredGatewaySelectedKeyId();
+      }
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.keys() });
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.keySelection() });
+      queryClient.invalidateQueries({
+        queryKey: [...gatewayKeys.all, "models"],
+      });
+    },
+  });
+}
+
 export function useGatewayStatsQuery(enabled = true) {
   return useQuery({
     queryKey: gatewayKeys.stats(),
@@ -179,5 +209,17 @@ export function useGatewayPaymentChannelsQuery(enabled = true) {
     queryKey: gatewayKeys.paymentChannels(),
     queryFn: () => gatewayApiClient.paymentChannels(),
     enabled,
+  });
+}
+
+export function useGatewayCreatePaymentOrderMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, channelId }: { planId: string; channelId: string }) =>
+      gatewayApiClient.createPaymentOrder(planId, channelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.stats() });
+    },
   });
 }

@@ -3,6 +3,23 @@
     "title": "CC Switch",
     "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
   },
+  "gateway": {
+    "advancedProviders": "Provider Config",
+    "auth": {
+      "title": "Sign in to manage your AI gateway balance and local tool config",
+      "subtitle": "Fixed to sub.tohoqing.com, with balance, usage, models, orders, and tool setup in one workspace.",
+      "loginTitle": "Account Login",
+      "registerTitle": "Create Account",
+      "email": "Email",
+      "password": "Password",
+      "login": "Log in",
+      "register": "Register",
+      "registerAccount": "Create account",
+      "backToLogin": "Back to login",
+      "firstKey": "First key",
+      "fixedGateway": "Fixed gateway"
+    }
+  },
   "common": {
     "add": "Add",
     "edit": "Edit",

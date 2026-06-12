@@ -90,8 +90,10 @@ import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
+import { GatewayApp } from "@/components/gateway/GatewayApp";
 
 type View =
+  | "gateway"
   | "providers"
   | "settings"
   | "prompts"
@@ -135,8 +137,9 @@ const getInitialApp = (): AppId => {
   return "claude";
 };
 
-const VIEW_STORAGE_KEY = "cc-switch-last-view";
+const VIEW_STORAGE_KEY = "thq-gateway-last-view";
 const VALID_VIEWS: View[] = [
+  "gateway",
   "providers",
   "settings",
   "prompts",
@@ -158,7 +161,7 @@ const getInitialView = (): View => {
   if (saved && VALID_VIEWS.includes(saved)) {
     return saved;
   }
-  return "providers";
+  return "gateway";
 };
 
 function App() {
@@ -220,7 +223,7 @@ function App() {
       sharedFeatureApp !== "gemini" &&
       sharedFeatureApp !== "hermes"
     ) {
-      setCurrentView("providers");
+      setCurrentView("gateway");
     }
   }, [sharedFeatureApp, currentView]);
 
@@ -581,12 +584,12 @@ function App() {
       if (document.body.style.overflow === "hidden") return;
 
       const view = currentViewRef.current;
-      if (view === "providers") return;
+      if (view === "gateway") return;
 
       if (isTextEditableTarget(event.target)) return;
 
       event.preventDefault();
-      setCurrentView(view === "skillsDiscovery" ? "skills" : "providers");
+      setCurrentView(view === "skillsDiscovery" ? "skills" : "gateway");
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -860,11 +863,20 @@ function App() {
   const renderContent = () => {
     const content = (() => {
       switch (currentView) {
+        case "gateway":
+          return (
+            <GatewayApp
+              activeApp={activeApp}
+              visibleApps={visibleApps}
+              onSwitchApp={setActiveApp}
+              onOpenAdvancedProviders={() => setCurrentView("providers")}
+            />
+          );
         case "settings":
           return (
             <SettingsPage
               open={true}
-              onOpenChange={() => setCurrentView("providers")}
+              onOpenChange={() => setCurrentView("gateway")}
               onImportSuccess={handleImportSuccess}
               defaultTab={settingsDefaultTab}
             />
@@ -874,7 +886,7 @@ function App() {
             <PromptPanel
               ref={promptPanelRef}
               open={true}
-              onOpenChange={() => setCurrentView("providers")}
+              onOpenChange={() => setCurrentView("gateway")}
               appId={sharedFeatureApp}
             />
           );
@@ -903,12 +915,12 @@ function App() {
           return (
             <UnifiedMcpPanel
               ref={mcpPanelRef}
-              onOpenChange={() => setCurrentView("providers")}
+              onOpenChange={() => setCurrentView("gateway")}
             />
           );
         case "agents":
           return (
-            <AgentsPanel onOpenChange={() => setCurrentView("providers")} />
+            <AgentsPanel onOpenChange={() => setCurrentView("gateway")} />
           );
         case "universal":
           return (
@@ -932,7 +944,7 @@ function App() {
           return <ToolsPanel />;
         case "openclawAgents":
           return <AgentsDefaultsPanel />;
-        default:
+        case "providers":
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
@@ -998,6 +1010,8 @@ function App() {
               </div>
             </div>
           );
+        default:
+          return null;
       }
     })();
 
@@ -1117,7 +1131,7 @@ function App() {
             className="flex items-center gap-1"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
-            {currentView !== "providers" ? (
+            {currentView !== "gateway" ? (
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -1126,7 +1140,7 @@ function App() {
                     setCurrentView(
                       currentView === "skillsDiscovery"
                         ? "skills"
-                        : "providers",
+                        : "gateway",
                     )
                   }
                   className="mr-2 rounded-lg"
@@ -1134,6 +1148,10 @@ function App() {
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <h1 className="text-lg font-semibold">
+                  {currentView === "providers" &&
+                    t("gateway.advancedProviders", {
+                      defaultValue: "供应商配置",
+                    })}
                   {currentView === "settings" && t("settings.title")}
                   {currentView === "prompts" &&
                     t("prompts.title", {
@@ -1160,7 +1178,7 @@ function App() {
               <div className="flex items-center gap-2">
                 <div className="relative inline-flex items-center">
                   <a
-                    href="https://ccswitch.io"
+                    href="https://sub.tohoqing.com"
                     target="_blank"
                     rel="noreferrer"
                     className={cn(
@@ -1170,7 +1188,7 @@ function App() {
                         : "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300",
                     )}
                   >
-                    CC Switch
+                    THQ AI Gateway
                   </a>
                 </div>
                 <Button

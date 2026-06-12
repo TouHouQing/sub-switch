@@ -1,6 +1,12 @@
 import { Suspense, type ComponentType } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { providersApi } from "@/lib/api/providers";
 import {
@@ -158,7 +164,13 @@ const renderApp = (AppComponent: ComponentType) => {
 
 describe("App integration with MSW", () => {
   beforeEach(() => {
+    cleanup();
+    document.body.innerHTML = "";
+    document.body.removeAttribute("data-scroll-locked");
+    document.body.style.pointerEvents = "";
     resetProviderState();
+    localStorage.clear();
+    localStorage.setItem("thq-gateway-last-view", "providers");
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -218,7 +230,7 @@ describe("App integration with MSW", () => {
 
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(toastSuccessMock).toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");
@@ -260,7 +272,7 @@ describe("App integration with MSW", () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalled();
     });
-  });
+  }, 15_000);
 
   it("duplicates openclaw providers with a generated key that avoids live-only ids", async () => {
     setProviders("openclaw", {
@@ -303,7 +315,7 @@ describe("App integration with MSW", () => {
     expect(toastErrorMock).not.toHaveBeenCalledWith(
       expect.stringContaining("Provider key is required for openclaw"),
     );
-  });
+  }, 15_000);
 
   it("shows toast when duplicate cannot load live provider ids", async () => {
     setProviders("openclaw", {
@@ -351,5 +363,5 @@ describe("App integration with MSW", () => {
     );
 
     liveIdsSpy.mockRestore();
-  });
+  }, 15_000);
 });

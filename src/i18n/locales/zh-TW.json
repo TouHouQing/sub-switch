@@ -3,6 +3,23 @@
     "title": "CC Switch",
     "description": "Claude Code / Codex / Gemini CLI 全方位輔助工具"
   },
+  "gateway": {
+    "advancedProviders": "供應商設定",
+    "auth": {
+      "title": "登入後管理你的 AI 中轉站額度與本機工具設定",
+      "subtitle": "固定連接 sub.tohoqing.com，餘額、用量、模型、訂單和本機工具寫入集中在一個工作台裡。",
+      "loginTitle": "帳號登入",
+      "registerTitle": "註冊帳號",
+      "email": "信箱",
+      "password": "密碼",
+      "login": "登入",
+      "register": "註冊",
+      "registerAccount": "註冊帳號",
+      "backToLogin": "返回登入",
+      "firstKey": "預設第一個",
+      "fixedGateway": "固定中轉站"
+    }
+  },
   "common": {
     "add": "新增",
     "edit": "編輯",

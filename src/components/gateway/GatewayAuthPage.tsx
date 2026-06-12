@@ -1,0 +1,160 @@
+import { FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { LogIn, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { GATEWAY_ORIGIN } from "@/lib/gateway/constants";
+
+export interface GatewayAuthCredentials {
+  email: string;
+  password: string;
+}
+
+interface GatewayAuthPageProps {
+  isLoading: boolean;
+  error?: string;
+  onLogin: (credentials: GatewayAuthCredentials) => Promise<void> | void;
+  onRegister: (credentials: GatewayAuthCredentials) => Promise<void> | void;
+}
+
+export function GatewayAuthPage({
+  isLoading,
+  error,
+  onLogin,
+  onRegister,
+}: GatewayAuthPageProps) {
+  const { t } = useTranslation();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const credentials = { email: email.trim(), password };
+    if (mode === "login") {
+      await onLogin(credentials);
+      return;
+    }
+    await onRegister(credentials);
+  };
+
+  const isRegister = mode === "register";
+
+  return (
+    <main className="flex min-h-full items-center justify-center px-6 py-10">
+      <section className="grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-lg border border-border-default bg-card shadow-sm md:grid-cols-[1fr_420px]">
+        <div className="flex min-h-[460px] flex-col justify-between bg-zinc-950 p-8 text-white dark:bg-zinc-950">
+          <div>
+            <div className="inline-flex items-center rounded-md border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-200">
+              THQ AI Gateway
+            </div>
+            <h1 className="mt-8 max-w-lg text-3xl font-semibold tracking-normal">
+              {t("gateway.auth.title", {
+                defaultValue: "登录后管理你的 AI 中转站额度与本地工具配置",
+              })}
+            </h1>
+            <p className="mt-4 max-w-md text-sm leading-6 text-zinc-300">
+              {t("gateway.auth.subtitle", {
+                defaultValue:
+                  "固定连接 sub.tohoqing.com，余额、用量、模型、订单和本地工具写入集中在一个工作台里。",
+              })}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-xs text-zinc-300">
+            <div className="rounded-md border border-white/10 bg-white/5 p-3">
+              <p className="text-zinc-500">Base</p>
+              <p className="mt-1 font-medium text-zinc-100">/v1</p>
+            </div>
+            <div className="rounded-md border border-white/10 bg-white/5 p-3">
+              <p className="text-zinc-500">Key</p>
+              <p className="mt-1 font-medium text-zinc-100">
+                {t("gateway.auth.firstKey", { defaultValue: "默认第一个" })}
+              </p>
+            </div>
+            <div className="rounded-md border border-white/10 bg-white/5 p-3">
+              <p className="text-zinc-500">API</p>
+              <p className="mt-1 font-medium text-zinc-100">
+                {t("gateway.auth.fixedGateway", { defaultValue: "固定中转站" })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form className="flex flex-col justify-center p-8" onSubmit={handleSubmit}>
+          <div>
+            <div className="flex items-center gap-2">
+              {isRegister ? (
+                <UserPlus className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <LogIn className="h-5 w-5 text-cyan-500" />
+              )}
+              <h2 className="text-xl font-semibold">
+                {isRegister
+                  ? t("gateway.auth.registerTitle", { defaultValue: "注册账号" })
+                  : t("gateway.auth.loginTitle", { defaultValue: "账号登录" })}
+              </h2>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">{GATEWAY_ORIGIN}</p>
+          </div>
+
+          <div className="mt-8 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="gateway-email">
+                {t("gateway.auth.email", { defaultValue: "邮箱" })}
+              </Label>
+              <Input
+                id="gateway-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gateway-password">
+                {t("gateway.auth.password", { defaultValue: "密码" })}
+              </Label>
+              <Input
+                id="gateway-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                autoComplete={isRegister ? "new-password" : "current-password"}
+                required
+                minLength={6}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="mt-4 rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-500 dark:text-red-300">
+              {error}
+            </p>
+          )}
+
+          <Button type="submit" className="mt-6" disabled={isLoading}>
+            {isLoading
+              ? t("common.loading", { defaultValue: "加载中..." })
+              : isRegister
+                ? t("gateway.auth.register", { defaultValue: "注册" })
+                : t("gateway.auth.login", { defaultValue: "登录" })}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-2"
+            onClick={() => setMode(isRegister ? "login" : "register")}
+          >
+            {isRegister
+              ? t("gateway.auth.backToLogin", { defaultValue: "返回登录" })
+              : t("gateway.auth.registerAccount", { defaultValue: "注册账号" })}
+          </Button>
+        </form>
+      </section>
+    </main>
+  );
+}
