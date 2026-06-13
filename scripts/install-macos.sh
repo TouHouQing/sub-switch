@@ -13,7 +13,7 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
 
 if [ "$TAG" = "$PLACEHOLDER_TAG" ] || [ -z "$TAG" ]; then
   echo "Usage: $0 <release-tag>" >&2
-  echo "Example: $0 v3.16.12" >&2
+  echo "Example: $0 v3.16.13" >&2
   exit 2
 fi
 

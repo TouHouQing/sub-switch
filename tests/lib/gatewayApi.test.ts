@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GatewayApiClient } from "@/lib/gateway/api";
 import type { GatewaySession } from "@/types/gateway";
+import { server } from "../msw/server";
+import { http, HttpResponse } from "msw";
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -13,6 +15,9 @@ const textResponse = (body: string, status = 200) =>
     status,
     headers: { "content-type": "text/plain" },
   });
+
+const fetchInputUrl = (input: Parameters<typeof fetch>[0]): string =>
+  typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
 describe("GatewayApiClient", () => {
   let session: GatewaySession | null;
@@ -379,5 +384,88 @@ describe("GatewayApiClient", () => {
     await expect(client.keys()).rejects.toThrow(
       "Gateway request failed with 502: upstream unavailable",
     );
+  });
+
+  it("routes the default client through the Tauri backend to avoid WebView CORS failures", async () => {
+    session = null;
+    const originalFetch = globalThis.fetch;
+    const browserFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) => {
+        const url = fetchInputUrl(input);
+        if (url.startsWith("https://sub.tohoqing.com")) {
+          return Promise.reject(new Error("direct gateway fetch should not be used"));
+        }
+        return originalFetch(input, init);
+      });
+
+    server.use(
+      http.post("http://tauri.local/gateway_http_request", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        expect(body).toMatchObject({
+          url: "https://sub.tohoqing.com/api/v1/auth/login",
+          method: "POST",
+          body: JSON.stringify({
+            email: "owner@tohoqing.com",
+            password: "secret123",
+          }),
+        });
+        const headers = body.headers as Record<string, string>;
+        expect(headers.accept ?? headers.Accept).toBe("application/json");
+        expect(headers["content-type"] ?? headers["Content-Type"]).toBe(
+          "application/json",
+        );
+        return HttpResponse.json({
+          status: 200,
+          body: {
+            access_token: "access-tauri",
+            refresh_token: "refresh-tauri",
+            expires_in: 3600,
+          },
+        });
+      }),
+    );
+
+    const defaultClient = new GatewayApiClient({
+      loadSession: () => session,
+      saveSession: (nextSession) => {
+        session = nextSession;
+      },
+      clearSession: () => {
+        session = null;
+      },
+    });
+
+    await expect(
+      defaultClient.login("owner@tohoqing.com", "secret123"),
+    ).resolves.toMatchObject({
+      accessToken: "access-tauri",
+      refreshToken: "refresh-tauri",
+    });
+    expect(
+      browserFetch.mock.calls.some(([input]) =>
+        fetchInputUrl(input).startsWith("https://sub.tohoqing.com"),
+      ),
+    ).toBe(false);
+  });
+
+  it("handles empty successful Tauri gateway responses", async () => {
+    server.use(
+      http.post("http://tauri.local/gateway_http_request", () =>
+        HttpResponse.json({ status: 204, body: null }),
+      ),
+    );
+
+    const defaultClient = new GatewayApiClient({
+      loadSession: () => session,
+      saveSession: (nextSession) => {
+        session = nextSession;
+      },
+      clearSession: () => {
+        session = null;
+      },
+    });
+
+    await expect(defaultClient.logout()).resolves.toBeUndefined();
   });
 });
