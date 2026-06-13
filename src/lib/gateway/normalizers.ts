@@ -1,6 +1,7 @@
 import type {
   GatewayApiKey,
   GatewayDashboardStats,
+  GatewayKeyGroup,
   GatewayModel,
   GatewayOrder,
   GatewayPaymentChannel,
@@ -17,7 +18,10 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function pick<T = unknown>(source: UnknownRecord, keys: readonly string[]): T | undefined {
+function pick<T = unknown>(
+  source: UnknownRecord,
+  keys: readonly string[],
+): T | undefined {
   for (const key of keys) {
     if (key in source) return source[key] as T;
   }
@@ -46,13 +50,15 @@ function toOptionalNumber(value: unknown): number | undefined {
 
 function toStringValue(value: unknown): string | undefined {
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   return undefined;
 }
 
 function normalizeTimestamp(value: unknown): string | undefined {
   if (typeof value === "string" && value.length > 0) return value;
-  if (typeof value === "number" && Number.isFinite(value)) return new Date(value).toISOString();
+  if (typeof value === "number" && Number.isFinite(value))
+    return new Date(value).toISOString();
   return undefined;
 }
 
@@ -86,7 +92,13 @@ function unwrap(value: unknown): unknown {
 function normalizeStatsRecord(record: UnknownRecord): GatewayDashboardStats {
   return {
     balance: toNumber(
-      pick(record, ["balance", "remainingBalance", "remaining_balance", "quota", "remaining_quota"]),
+      pick(record, [
+        "balance",
+        "remainingBalance",
+        "remaining_balance",
+        "quota",
+        "remaining_quota",
+      ]),
     ),
     todayUsage: toNumber(
       pick(record, [
@@ -100,7 +112,12 @@ function normalizeStatsRecord(record: UnknownRecord): GatewayDashboardStats {
       ]),
     ),
     todayTokens: toNumber(
-      pick(record, ["todayTokens", "today_tokens", "daily_tokens", "tokensToday"]),
+      pick(record, [
+        "todayTokens",
+        "today_tokens",
+        "daily_tokens",
+        "tokensToday",
+      ]),
     ),
     totalUsage: toNumber(
       pick(record, [
@@ -113,10 +130,20 @@ function normalizeStatsRecord(record: UnknownRecord): GatewayDashboardStats {
       ]),
     ),
     todayRequests: toNumber(
-      pick(record, ["todayRequests", "today_requests", "daily_requests", "requestsToday"]),
+      pick(record, [
+        "todayRequests",
+        "today_requests",
+        "daily_requests",
+        "requestsToday",
+      ]),
     ),
     totalRequests: toNumber(
-      pick(record, ["totalRequests", "total_requests", "requestTotal", "requestsTotal"]),
+      pick(record, [
+        "totalRequests",
+        "total_requests",
+        "requestTotal",
+        "requestsTotal",
+      ]),
     ),
   };
 }
@@ -128,25 +155,80 @@ function normalizeUserRecord(record: UnknownRecord): GatewayUser | undefined {
     id,
     email: toStringValue(pick(record, ["email"])),
     username: toStringValue(pick(record, ["username", "name"])),
-    displayName: toStringValue(pick(record, ["display_name", "displayName", "nickname"])),
+    displayName: toStringValue(
+      pick(record, ["display_name", "displayName", "nickname"]),
+    ),
     avatarUrl: toStringValue(pick(record, ["avatar_url", "avatarUrl"])),
     balance: toOptionalNumber(
-      pick(record, ["balance", "remainingBalance", "remaining_balance", "quota", "remaining_quota"]),
+      pick(record, [
+        "balance",
+        "remainingBalance",
+        "remaining_balance",
+        "quota",
+        "remaining_quota",
+      ]),
     ),
   };
 }
 
-function normalizeKeyRecord(record: UnknownRecord, index: number): GatewayApiKey {
-  const id = toStringValue(pick(record, ["id", "keyId", "key_id", "tokenId", "token_id"])) ?? "";
+function normalizeKeyRecord(
+  record: UnknownRecord,
+  index: number,
+): GatewayApiKey {
+  const id =
+    toStringValue(
+      pick(record, ["id", "keyId", "key_id", "tokenId", "token_id"]),
+    ) ?? "";
+  const group = isRecord(record.group)
+    ? record.group
+    : isRecord(record.key_group)
+      ? record.key_group
+      : undefined;
   return {
     id,
     name:
       toStringValue(pick(record, ["name", "label"])) ?? `API Key ${index + 1}`,
-    secret: toStringValue(pick(record, ["secret", "key", "token", "apiKey", "api_key"])),
+    secret: toStringValue(
+      pick(record, ["secret", "key", "token", "apiKey", "api_key"]),
+    ),
     prefix: toStringValue(pick(record, ["prefix", "keyPrefix", "key_prefix"])),
     status: toStringValue(pick(record, ["status", "state"])),
+    groupId:
+      toStringValue(
+        pick(record, ["groupId", "group_id", "keyGroupId", "key_group_id"]),
+      ) ?? toStringValue(pick(group ?? {}, ["id", "groupId", "group_id"])),
+    groupName:
+      toStringValue(
+        pick(record, [
+          "groupName",
+          "group_name",
+          "keyGroupName",
+          "key_group_name",
+        ]),
+      ) ?? toStringValue(pick(group ?? {}, ["name", "label", "title"])),
     createdAt: normalizeTimestamp(pick(record, ["createdAt", "created_at"])),
-    lastUsedAt: normalizeTimestamp(pick(record, ["lastUsedAt", "last_used_at"])),
+    lastUsedAt: normalizeTimestamp(
+      pick(record, ["lastUsedAt", "last_used_at"]),
+    ),
+  };
+}
+
+function normalizeKeyGroupRecord(record: UnknownRecord): GatewayKeyGroup {
+  const id =
+    toStringValue(
+      pick(record, ["id", "groupId", "group_id", "keyGroupId", "key_group_id"]),
+    ) ?? "";
+  return {
+    id,
+    name: toStringValue(pick(record, ["name", "label", "title"])) ?? id,
+    platform: toStringValue(
+      pick(record, ["platform", "provider", "provider_id"]),
+    ),
+    description: toStringValue(pick(record, ["description", "desc", "remark"])),
+    rate: toOptionalNumber(pick(record, ["rate", "ratio"])),
+    userRate: toOptionalNumber(
+      pick(record, ["userRate", "user_rate", "userRatio", "user_ratio"]),
+    ),
   };
 }
 
@@ -157,7 +239,9 @@ function normalizeModelRecord(
 ): GatewayModel {
   const name =
     toStringValue(pick(record, ["name", "displayName", "display_name"])) ??
-    toStringValue(pick(record, ["id", "model", "modelId", "model_id", "slug"])) ??
+    toStringValue(
+      pick(record, ["id", "model", "modelId", "model_id", "slug"]),
+    ) ??
     "";
   const enabledValue = pick(record, ["enabled", "isEnabled", "is_enabled"]);
   const metadata = isRecord(record.meta)
@@ -169,7 +253,9 @@ function normalizeModelRecord(
     toStringValue(pick(record, ["provider", "providerId", "provider_id"])) ??
     toStringValue(pick(record, ["ownedBy", "owned_by"]));
   const provider = recordProvider ?? providerHint ?? channelHint;
-  const statusValue = toStringValue(pick(record, ["status", "state"]))?.toLowerCase();
+  const statusValue = toStringValue(
+    pick(record, ["status", "state"]),
+  )?.toLowerCase();
   const enabled =
     typeof enabledValue === "boolean"
       ? enabledValue
@@ -181,14 +267,18 @@ function normalizeModelRecord(
         : true;
 
   return {
-    id: toStringValue(pick(record, ["id", "model", "modelId", "model_id", "slug"])) ?? "",
+    id:
+      toStringValue(
+        pick(record, ["id", "model", "modelId", "model_id", "slug"]),
+      ) ?? "",
     name,
     provider,
     enabled,
     priceText:
       toStringValue(pick(record, ["priceText", "price_text"])) ??
-      (toOptionalNumber(pick(record, ["price", "amount", "inputPrice", "outputPrice"])) !==
-      undefined
+      (toOptionalNumber(
+        pick(record, ["price", "amount", "inputPrice", "outputPrice"]),
+      ) !== undefined
         ? String(
             pick(record, ["priceText", "price_text"]) ??
               pick(record, ["price", "amount", "inputPrice", "outputPrice"]),
@@ -196,7 +286,11 @@ function normalizeModelRecord(
         : undefined),
     contextWindow: toOptionalNumber(
       pick(record, ["contextWindow", "context_window"]) ??
-        pick(metadata ?? {}, ["contextWindow", "context_window", "max_context_tokens"]),
+        pick(metadata ?? {}, [
+          "contextWindow",
+          "context_window",
+          "max_context_tokens",
+        ]),
     ),
   };
 }
@@ -204,7 +298,12 @@ function normalizeModelRecord(
 function normalizeUsageRecord(record: UnknownRecord): GatewayUsageRecord {
   const apiKey = isRecord(record.api_key) ? record.api_key : undefined;
   const promptTokens = toNumber(
-    pick(record, ["promptTokens", "prompt_tokens", "inputTokens", "input_tokens"]),
+    pick(record, [
+      "promptTokens",
+      "prompt_tokens",
+      "inputTokens",
+      "input_tokens",
+    ]),
   );
   const completionTokens = toNumber(
     pick(record, [
@@ -214,11 +313,15 @@ function normalizeUsageRecord(record: UnknownRecord): GatewayUsageRecord {
       "output_tokens",
     ]),
   );
-  const cacheReadTokens = toNumber(pick(record, ["cacheReadTokens", "cache_read_tokens"]));
+  const cacheReadTokens = toNumber(
+    pick(record, ["cacheReadTokens", "cache_read_tokens"]),
+  );
   const cacheCreationTokens = toNumber(
     pick(record, ["cacheCreationTokens", "cache_creation_tokens"]),
   );
-  const explicitTotalTokens = toNumber(pick(record, ["totalTokens", "total_tokens"]));
+  const explicitTotalTokens = toNumber(
+    pick(record, ["totalTokens", "total_tokens"]),
+  );
   return {
     id: toStringValue(pick(record, ["id", "requestId", "request_id"])) ?? "",
     promptTokens,
@@ -226,15 +329,25 @@ function normalizeUsageRecord(record: UnknownRecord): GatewayUsageRecord {
     totalTokens:
       explicitTotalTokens > 0
         ? explicitTotalTokens
-        : promptTokens + completionTokens + cacheReadTokens + cacheCreationTokens,
+        : promptTokens +
+          completionTokens +
+          cacheReadTokens +
+          cacheCreationTokens,
     cost: toNumber(
-      pick(record, ["cost", "actualCost", "actual_cost", "totalCost", "total_cost"]),
+      pick(record, [
+        "cost",
+        "actualCost",
+        "actual_cost",
+        "totalCost",
+        "total_cost",
+      ]),
     ),
     createdAt: normalizeTimestamp(pick(record, ["createdAt", "created_at"])),
     model: toStringValue(pick(record, ["model"])),
     apiKeyName:
-      toStringValue(pick(record, ["apiKeyName", "api_key_name", "keyName", "key_name"])) ??
-      toStringValue(pick(apiKey ?? {}, ["name", "label"])),
+      toStringValue(
+        pick(record, ["apiKeyName", "api_key_name", "keyName", "key_name"]),
+      ) ?? toStringValue(pick(apiKey ?? {}, ["name", "label"])),
     status: toStringValue(pick(record, ["status"])),
   };
 }
@@ -254,10 +367,19 @@ function normalizePaymentChannelRecord(
   record: UnknownRecord,
   idHint?: string,
 ): GatewayPaymentChannel {
-  const enabledValue = pick(record, ["enabled", "isEnabled", "is_enabled", "available"]);
-  const statusValue = toStringValue(pick(record, ["status", "state"]))?.toLowerCase();
+  const enabledValue = pick(record, [
+    "enabled",
+    "isEnabled",
+    "is_enabled",
+    "available",
+  ]);
+  const statusValue = toStringValue(
+    pick(record, ["status", "state"]),
+  )?.toLowerCase();
   const id =
-    toStringValue(pick(record, ["id", "channelId", "channel_id", "type", "payment_type"])) ??
+    toStringValue(
+      pick(record, ["id", "channelId", "channel_id", "type", "payment_type"]),
+    ) ??
     idHint ??
     "";
   return {
@@ -272,8 +394,12 @@ function normalizePaymentChannelRecord(
             statusValue === "false"
           ? false
           : true,
-    minAmount: toOptionalNumber(pick(record, ["minAmount", "min_amount", "single_min"])),
-    maxAmount: toOptionalNumber(pick(record, ["maxAmount", "max_amount", "single_max"])),
+    minAmount: toOptionalNumber(
+      pick(record, ["minAmount", "min_amount", "single_min"]),
+    ),
+    maxAmount: toOptionalNumber(
+      pick(record, ["maxAmount", "max_amount", "single_max"]),
+    ),
     feeRate: toOptionalNumber(pick(record, ["feeRate", "fee_rate"])),
     currency: toStringValue(pick(record, ["currency"])),
   };
@@ -293,7 +419,9 @@ function normalizeOrderRecord(record: UnknownRecord): GatewayOrder {
         "total_amount",
       ]),
     ),
-    orderNo: toStringValue(pick(record, ["orderNo", "order_no", "outTradeNo", "out_trade_no"])),
+    orderNo: toStringValue(
+      pick(record, ["orderNo", "order_no", "outTradeNo", "out_trade_no"]),
+    ),
     status,
     createdAt: normalizeTimestamp(pick(record, ["createdAt", "created_at"])),
     paidAt: normalizeTimestamp(pick(record, ["paidAt", "paid_at"])),
@@ -307,16 +435,23 @@ function normalizeOrderRecord(record: UnknownRecord): GatewayOrder {
         "checkout_url",
         "qrCodeUrl",
         "qr_code_url",
-        "qrCode",
-        "qr_code",
       ]),
+    ),
+    qrCode: toStringValue(pick(record, ["qrCode", "qr_code", "qrcode", "qr"])),
+    paymentMode: toStringValue(
+      pick(record, ["paymentMode", "payment_mode", "mode"]),
+    ),
+    expiresAt: normalizeTimestamp(
+      pick(record, ["expiresAt", "expires_at", "expire_at"]),
     ),
   };
 }
 
 export function normalizeGatewayStats(value: unknown): GatewayDashboardStats {
   const unwrapped = unwrap(value);
-  return isRecord(unwrapped) ? normalizeStatsRecord(unwrapped) : normalizeStatsRecord({});
+  return isRecord(unwrapped)
+    ? normalizeStatsRecord(unwrapped)
+    : normalizeStatsRecord({});
 }
 
 export function normalizeGatewayUser(value: unknown): GatewayUser | undefined {
@@ -328,8 +463,27 @@ export function normalizeGatewayKeys(value: unknown): GatewayApiKey[] {
   const unwrapped = unwrap(value);
   const list = collect(unwrapped);
   if (list.length > 0) return list.filter(isRecord).map(normalizeKeyRecord);
-  if (hasRecognizableFields(unwrapped, ["id", "keyId", "key_id", "tokenId", "token_id"])) {
+  if (
+    hasRecognizableFields(unwrapped, [
+      "id",
+      "keyId",
+      "key_id",
+      "tokenId",
+      "token_id",
+    ])
+  ) {
     return [normalizeKeyRecord(unwrapped, 0)];
+  }
+  return [];
+}
+
+export function normalizeGatewayKeyGroups(value: unknown): GatewayKeyGroup[] {
+  const unwrapped = unwrap(value);
+  const list = collect(unwrapped);
+  if (list.length > 0)
+    return list.filter(isRecord).map(normalizeKeyGroupRecord);
+  if (hasRecognizableFields(unwrapped, ["id", "groupId", "group_id"])) {
+    return [normalizeKeyGroupRecord(unwrapped)];
   }
   return [];
 }
@@ -341,18 +495,34 @@ export function normalizeGatewayModels(value: unknown): GatewayModel[] {
 
   if (Array.isArray(unwrapped)) {
     const providerHint = toStringValue(
-      pick(wrapper ?? {}, ["provider", "providerId", "provider_id", "ownedBy", "owned_by"]),
+      pick(wrapper ?? {}, [
+        "provider",
+        "providerId",
+        "provider_id",
+        "ownedBy",
+        "owned_by",
+      ]),
     );
-    const channelHint = toStringValue(pick(wrapper ?? {}, ["channel", "channelId", "channel_id"]));
+    const channelHint = toStringValue(
+      pick(wrapper ?? {}, ["channel", "channelId", "channel_id"]),
+    );
     return unwrapped
       .filter(isRecord)
       .map((record) => normalizeModelRecord(record, providerHint, channelHint));
   }
 
   const providerHint = toStringValue(
-    pick(wrapper ?? unwrapped, ["provider", "providerId", "provider_id", "ownedBy", "owned_by"]),
+    pick(wrapper ?? unwrapped, [
+      "provider",
+      "providerId",
+      "provider_id",
+      "ownedBy",
+      "owned_by",
+    ]),
   );
-  const channelHint = toStringValue(pick(wrapper ?? unwrapped, ["channel", "channelId", "channel_id"]));
+  const channelHint = toStringValue(
+    pick(wrapper ?? unwrapped, ["channel", "channelId", "channel_id"]),
+  );
 
   const list = collect(unwrapped);
   if (list.length > 0) {
@@ -361,10 +531,15 @@ export function normalizeGatewayModels(value: unknown): GatewayModel[] {
       .map((record) => normalizeModelRecord(record, providerHint, channelHint));
   }
 
-  const singleId = toStringValue(pick(unwrapped, ["id", "model", "modelId", "model_id", "slug"]));
-  if (singleId) return [normalizeModelRecord(unwrapped, providerHint, channelHint)];
+  const singleId = toStringValue(
+    pick(unwrapped, ["id", "model", "modelId", "model_id", "slug"]),
+  );
+  if (singleId)
+    return [normalizeModelRecord(unwrapped, providerHint, channelHint)];
 
-  const singletonName = toStringValue(pick(unwrapped, ["name", "displayName", "display_name"]));
+  const singletonName = toStringValue(
+    pick(unwrapped, ["name", "displayName", "display_name"]),
+  );
   if (!singletonName) return [];
   return [
     normalizeModelRecord(
@@ -375,7 +550,9 @@ export function normalizeGatewayModels(value: unknown): GatewayModel[] {
   ];
 }
 
-export function normalizeGatewayUsageRecords(value: unknown): GatewayUsageRecord[] {
+export function normalizeGatewayUsageRecords(
+  value: unknown,
+): GatewayUsageRecord[] {
   const unwrapped = unwrap(value);
   const list = collect(unwrapped);
   if (list.length > 0) return list.filter(isRecord).map(normalizeUsageRecord);
@@ -385,21 +562,28 @@ export function normalizeGatewayUsageRecords(value: unknown): GatewayUsageRecord
   return [];
 }
 
-export function normalizeGatewayPaymentPlans(value: unknown): GatewayPaymentPlan[] {
+export function normalizeGatewayPaymentPlans(
+  value: unknown,
+): GatewayPaymentPlan[] {
   const unwrapped = unwrap(value);
   const list = collect(unwrapped);
-  if (list.length > 0) return list.filter(isRecord).map(normalizePaymentPlanRecord);
+  if (list.length > 0)
+    return list.filter(isRecord).map(normalizePaymentPlanRecord);
   if (hasRecognizableFields(unwrapped, ["id", "planId", "plan_id"])) {
     return [normalizePaymentPlanRecord(unwrapped)];
   }
   return [];
 }
 
-export function normalizeGatewayPaymentChannels(value: unknown): GatewayPaymentChannel[] {
+export function normalizeGatewayPaymentChannels(
+  value: unknown,
+): GatewayPaymentChannel[] {
   const unwrapped = unwrap(value);
   const list = collect(unwrapped);
   if (list.length > 0) {
-    return list.filter(isRecord).map((record) => normalizePaymentChannelRecord(record));
+    return list
+      .filter(isRecord)
+      .map((record) => normalizePaymentChannelRecord(record));
   }
   if (isRecord(unwrapped) && isRecord(unwrapped.methods)) {
     return Object.entries(unwrapped.methods)

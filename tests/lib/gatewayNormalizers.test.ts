@@ -8,6 +8,7 @@ import {
   normalizeGatewayPaymentChannels,
   normalizeGatewayOrders,
   normalizeGatewayKeys,
+  normalizeGatewayKeyGroups,
   normalizeGatewayModels,
   normalizeGatewayUsageRecords,
   normalizeGatewayStats,
@@ -73,7 +74,13 @@ describe("normalizeGatewayKeys", () => {
       normalizeGatewayKeys({
         data: [
           { id: "main", name: "Main", key: "sk-main" },
-          { id: "spare", name: "Spare", token: "sk-spare" },
+          {
+            id: "spare",
+            name: "Spare",
+            token: "sk-spare",
+            group_id: "group-openai",
+            group: { name: "OpenAI", platform: "openai" },
+          },
         ],
       }),
     ).toEqual([
@@ -83,6 +90,8 @@ describe("normalizeGatewayKeys", () => {
         secret: "sk-main",
         prefix: undefined,
         status: undefined,
+        groupId: undefined,
+        groupName: undefined,
         createdAt: undefined,
         lastUsedAt: undefined,
       },
@@ -92,6 +101,8 @@ describe("normalizeGatewayKeys", () => {
         secret: "sk-spare",
         prefix: undefined,
         status: undefined,
+        groupId: "group-openai",
+        groupName: "OpenAI",
         createdAt: undefined,
         lastUsedAt: undefined,
       },
@@ -99,15 +110,47 @@ describe("normalizeGatewayKeys", () => {
   });
 
   it("normalizes singleton key objects", () => {
-    expect(normalizeGatewayKeys({ id: "k1", name: "Main", key: "sk" })).toEqual([
+    expect(normalizeGatewayKeys({ id: "k1", name: "Main", key: "sk" })).toEqual(
+      [
+        {
+          id: "k1",
+          name: "Main",
+          secret: "sk",
+          prefix: undefined,
+          status: undefined,
+          groupId: undefined,
+          groupName: undefined,
+          createdAt: undefined,
+          lastUsedAt: undefined,
+        },
+      ],
+    );
+  });
+});
+
+describe("normalizeGatewayKeyGroups", () => {
+  it("normalizes official available groups", () => {
+    expect(
+      normalizeGatewayKeyGroups({
+        data: [
+          {
+            id: "group-openai",
+            name: "OpenAI",
+            platform: "openai",
+            description: "通用模型组",
+            rate: 1.2,
+            user_rate: 1,
+          },
+        ],
+      }),
+    ).toEqual([
       {
-        id: "k1",
-        name: "Main",
-        secret: "sk",
-        prefix: undefined,
-        status: undefined,
-        createdAt: undefined,
-        lastUsedAt: undefined,
+        id: "group-openai",
+        name: "OpenAI",
+        platform: "openai",
+        description: "通用模型组",
+        rate: 1.2,
+        userRate: 1,
       },
     ]);
   });
@@ -187,7 +230,11 @@ describe("normalizeGatewayModels", () => {
           channel: "openai",
           models: [
             { id: "gpt-5.5", name: "GPT-5.5", provider: "openai" },
-            { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic" },
+            {
+              id: "claude-sonnet-4-20250514",
+              name: "Claude Sonnet 4",
+              provider: "anthropic",
+            },
           ],
         },
       }),
@@ -227,7 +274,9 @@ describe("normalizeGatewayModels", () => {
   });
 
   it("preserves wrapper provider hints for data arrays", () => {
-    expect(normalizeGatewayModels({ provider: "openai", data: [{ id: "x" }] })).toEqual([
+    expect(
+      normalizeGatewayModels({ provider: "openai", data: [{ id: "x" }] }),
+    ).toEqual([
       {
         id: "x",
         name: "x",
@@ -383,6 +432,9 @@ describe("normalizeGatewayOrders", () => {
               status: "PENDING",
               created_at: "2026-06-12T11:00:00Z",
               pay_url: "https://pay.example/checkout",
+              qr_code: "https://qr.example/alipay",
+              payment_mode: "qrcode",
+              expires_at: "2026-06-12T11:10:00Z",
             },
           ],
           total: 1,
@@ -397,6 +449,9 @@ describe("normalizeGatewayOrders", () => {
         createdAt: "2026-06-12T11:00:00Z",
         paidAt: undefined,
         paymentUrl: "https://pay.example/checkout",
+        qrCode: "https://qr.example/alipay",
+        paymentMode: "qrcode",
+        expiresAt: "2026-06-12T11:10:00Z",
       },
     ]);
   });

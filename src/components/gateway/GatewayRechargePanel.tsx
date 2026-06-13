@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard } from "lucide-react";
+import { CreditCard, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatGatewayNumber } from "@/components/gateway/format";
@@ -10,6 +10,20 @@ import type {
 } from "@/types/gateway";
 
 const RECHARGE_AMOUNTS = [10, 20, 50, 100, 200, 500] as const;
+
+const toQrImageSource = (value: string): string => {
+  const trimmed = value.trim();
+  if (
+    trimmed.startsWith("data:image/") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://")
+  ) {
+    return trimmed;
+  }
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+    trimmed,
+  )}`;
+};
 
 interface GatewayRechargePanelProps {
   channels: GatewayPaymentChannel[];
@@ -34,6 +48,7 @@ export function GatewayRechargePanel({
   );
   const [amount, setAmount] = useState<number>(RECHARGE_AMOUNTS[1]);
   const [channelId, setChannelId] = useState("");
+  const [qrOrder, setQrOrder] = useState<GatewayOrder | null>(null);
   const selectedChannel = useMemo(
     () => enabledChannels.find((channel) => channel.id === channelId) ?? null,
     [channelId, enabledChannels],
@@ -54,11 +69,17 @@ export function GatewayRechargePanel({
 
   const handleCreateOrder = async () => {
     if (!selectedChannel || !amountAllowed) return;
+    setQrOrder(null);
     const order = await onCreateOrder({
       amount,
       paymentType: selectedChannel.id,
       orderType: "balance",
+      forceQRCode: true,
     });
+    if (order?.qrCode) {
+      setQrOrder(order);
+      return;
+    }
     if (order?.paymentUrl) {
       onOpenExternal(order.paymentUrl);
     }
@@ -115,9 +136,40 @@ export function GatewayRechargePanel({
             <CreditCard className="h-4 w-4" />
             {isCreatingOrder ? "创建订单中..." : "充值"}
           </Button>
+          {qrOrder?.qrCode ? (
+            <div className="rounded-md border border-blue-500/20 bg-blue-50/70 p-4 text-center dark:bg-blue-950/20">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+                <QrCode className="h-5 w-5" />
+              </div>
+              <p className="mt-3 text-sm font-semibold text-foreground">
+                请使用支付宝扫码完成付款
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                订单金额：{formatGatewayNumber(qrOrder.amount)}
+              </p>
+              <img
+                src={toQrImageSource(qrOrder.qrCode)}
+                alt="支付宝付款二维码"
+                className="mx-auto mt-3 h-44 w-44 rounded-md border border-border-default bg-white p-2"
+              />
+              {qrOrder.paymentUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => onOpenExternal(qrOrder.paymentUrl!)}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  打开支付链接
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           {!amountAllowed && selectedChannel ? (
             <p className="text-xs text-amber-600 dark:text-amber-300">
-              当前渠道支持 {formatGatewayNumber(selectedChannel.minAmount ?? 0)} -{" "}
+              当前渠道支持 {formatGatewayNumber(selectedChannel.minAmount ?? 0)}{" "}
+              -{" "}
               {selectedChannel.maxAmount
                 ? formatGatewayNumber(selectedChannel.maxAmount)
                 : "不限"}

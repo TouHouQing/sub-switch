@@ -20,8 +20,30 @@ export type GatewayApiKey = {
   secret?: string;
   prefix?: string;
   status?: string;
+  groupId?: string;
+  groupName?: string;
   createdAt?: string;
   lastUsedAt?: string;
+};
+
+export type GatewayKeyGroup = {
+  id: string;
+  name: string;
+  platform?: string;
+  description?: string;
+  rate?: number;
+  userRate?: number;
+};
+
+export type GatewayCreateKeyInput = {
+  name?: string;
+  groupId?: string;
+};
+
+export type GatewayUpdateKeyInput = {
+  name?: string;
+  groupId?: string;
+  status?: string;
 };
 
 export type GatewayDashboardStats = {
@@ -90,6 +112,9 @@ export type GatewayOrder = {
   createdAt?: string;
   paidAt?: string;
   paymentUrl?: string;
+  qrCode?: string;
+  paymentMode?: string;
+  expiresAt?: string;
 };
 
 export type GatewayKeySelection = {

@@ -7,7 +7,11 @@ import {
   saveGatewaySelectedKeyId,
 } from "@/lib/gateway/keySelection";
 import { loadGatewaySession } from "@/lib/gateway/session";
-import type { GatewayCreatePaymentOrderInput } from "@/types/gateway";
+import type {
+  GatewayCreateKeyInput,
+  GatewayCreatePaymentOrderInput,
+  GatewayUpdateKeyInput,
+} from "@/types/gateway";
 
 const gatewayModelsScopeKey = (apiKey?: string): string => {
   if (!apiKey) return "available";
@@ -28,8 +32,10 @@ export const gatewayKeys = {
   register: () => [...gatewayKeys.all, "register"] as const,
   logout: () => [...gatewayKeys.all, "logout"] as const,
   keys: () => [...gatewayKeys.all, "keys"] as const,
+  keyGroups: () => [...gatewayKeys.all, "key-groups"] as const,
   keySelection: () => [...gatewayKeys.all, "key-selection"] as const,
   createKey: () => [...gatewayKeys.all, "create-key"] as const,
+  updateKey: () => [...gatewayKeys.all, "update-key"] as const,
   stats: () => [...gatewayKeys.all, "stats"] as const,
   models: (apiKey?: string) =>
     [...gatewayKeys.all, "models", gatewayModelsScopeKey(apiKey)] as const,
@@ -50,13 +56,8 @@ export function useGatewaySessionQuery(enabled = true) {
 export function useGatewayLoginMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      email,
-      password,
-    }: {
-      email: string;
-      password: string;
-    }) => gatewayApiClient.login(email, password),
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      gatewayApiClient.login(email, password),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.session() });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.keys() });
@@ -68,13 +69,8 @@ export function useGatewayLoginMutation() {
 export function useGatewayRegisterMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      email,
-      password,
-    }: {
-      email: string;
-      password: string;
-    }) => gatewayApiClient.register(email, password),
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      gatewayApiClient.register(email, password),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.session() });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.keys() });
@@ -104,6 +100,14 @@ export function useGatewayKeysQuery(enabled = true) {
   });
 }
 
+export function useGatewayKeyGroupsQuery(enabled = true) {
+  return useQuery({
+    queryKey: gatewayKeys.keyGroups(),
+    queryFn: () => gatewayApiClient.keyGroups(),
+    enabled,
+  });
+}
+
 export function useGatewayKeySelectionQuery(enabled = true) {
   return useQuery({
     queryKey: gatewayKeys.keySelection(),
@@ -118,13 +122,32 @@ export function useGatewayKeySelectionQuery(enabled = true) {
 export function useGatewayCreateKeyMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name?: string) => gatewayApiClient.createKey(name),
+    mutationFn: (input?: string | GatewayCreateKeyInput) =>
+      gatewayApiClient.createKey(input),
     onSuccess: (keys) => {
       queryClient.invalidateQueries({ queryKey: gatewayKeys.keys() });
       queryClient.invalidateQueries({ queryKey: gatewayKeys.keySelection() });
+      queryClient.invalidateQueries({
+        queryKey: [...gatewayKeys.all, "models"],
+      });
       if (keys[0]?.id) {
         saveGatewaySelectedKeyId(keys[0].id);
       }
+    },
+  });
+}
+
+export function useGatewayUpdateKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: GatewayUpdateKeyInput }) =>
+      gatewayApiClient.updateKey(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.keys() });
+      queryClient.invalidateQueries({ queryKey: gatewayKeys.keySelection() });
+      queryClient.invalidateQueries({
+        queryKey: [...gatewayKeys.all, "models"],
+      });
     },
   });
 }
