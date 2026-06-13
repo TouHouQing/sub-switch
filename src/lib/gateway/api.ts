@@ -11,6 +11,7 @@ import {
   saveGatewaySession,
 } from "@/lib/gateway/session";
 import {
+  normalizeGatewayKeyGroups,
   normalizeGatewayKeys,
   normalizeGatewayModels,
   normalizeGatewayOrders,
@@ -22,13 +23,16 @@ import {
 } from "@/lib/gateway/normalizers";
 import type {
   GatewayApiKey,
+  GatewayCreateKeyInput,
   GatewayCreatePaymentOrderInput,
   GatewayDashboardStats,
+  GatewayKeyGroup,
   GatewayModel,
   GatewayOrder,
   GatewayPaymentChannel,
   GatewayPaymentPlan,
   GatewaySession,
+  GatewayUpdateKeyInput,
   GatewayUsageRecord,
   GatewayUser,
 } from "@/types/gateway";
@@ -67,7 +71,8 @@ const stringField = (
   for (const key of keys) {
     const value = record[key];
     if (typeof value === "string" && value.trim()) return value;
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "number" && Number.isFinite(value))
+      return String(value);
   }
   return undefined;
 };
@@ -111,10 +116,17 @@ const normalizeSession = (
   response: unknown,
   fallbackRefreshToken?: string,
 ): GatewaySession => {
-  const record = isRecord(unwrapData(response)) ? (unwrapData(response) as Record<string, unknown>) : {};
-  const accessToken = stringField(record, ["accessToken", "access_token", "token"]);
+  const record = isRecord(unwrapData(response))
+    ? (unwrapData(response) as Record<string, unknown>)
+    : {};
+  const accessToken = stringField(record, [
+    "accessToken",
+    "access_token",
+    "token",
+  ]);
   const refreshToken =
-    stringField(record, ["refreshToken", "refresh_token"]) ?? fallbackRefreshToken;
+    stringField(record, ["refreshToken", "refresh_token"]) ??
+    fallbackRefreshToken;
 
   if (!accessToken || !refreshToken) {
     throw new Error("Gateway auth response is missing tokens");
@@ -143,7 +155,9 @@ const buildPaymentOrderPayload = (
   const paymentType = normalizePaymentType(input.paymentType);
   const origin = (input.origin ?? GATEWAY_ORIGIN).trim().replace(/\/+$/, "");
   const isMobile =
-    input.forceQRCode && paymentType === "alipay" ? false : (input.isMobile ?? false);
+    input.forceQRCode && paymentType === "alipay"
+      ? false
+      : (input.isMobile ?? false);
   const payload: Record<string, unknown> = {
     amount: input.amount,
     payment_type: paymentType,
@@ -157,6 +171,27 @@ const buildPaymentOrderPayload = (
 
   if (input.planId) payload.plan_id = input.planId;
   if (origin) payload.return_url = `${origin}/payment/result`;
+  return payload;
+};
+
+const buildCreateKeyPayload = (
+  input?: string | GatewayCreateKeyInput,
+): Record<string, unknown> => {
+  const source = typeof input === "string" ? { name: input } : (input ?? {});
+  const payload: Record<string, unknown> = {
+    name: source.name?.trim() || "Desktop Client",
+  };
+  if (source.groupId?.trim()) payload.group_id = source.groupId.trim();
+  return payload;
+};
+
+const buildUpdateKeyPayload = (
+  input: GatewayUpdateKeyInput,
+): Record<string, unknown> => {
+  const payload: Record<string, unknown> = {};
+  if (input.name !== undefined) payload.name = input.name.trim();
+  if (input.groupId !== undefined) payload.group_id = input.groupId.trim();
+  if (input.status !== undefined) payload.status = input.status;
   return payload;
 };
 
@@ -217,12 +252,35 @@ export class GatewayApiClient {
     return normalizeGatewayKeys(await this.managementRequest("/keys"));
   }
 
-  async createKey(name = "Desktop Client"): Promise<GatewayApiKey[]> {
+  async keyGroups(): Promise<GatewayKeyGroup[]> {
+    return normalizeGatewayKeyGroups(
+      await this.managementRequest("/groups/available"),
+    );
+  }
+
+  async createKey(
+    input?: string | GatewayCreateKeyInput,
+  ): Promise<GatewayApiKey[]> {
     await this.managementRequest("/keys", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(buildCreateKeyPayload(input)),
     });
     return this.keys();
+  }
+
+  async updateKey(
+    id: string,
+    input: GatewayUpdateKeyInput,
+  ): Promise<GatewayApiKey | undefined> {
+    const response = await this.managementRequest(
+      `/keys/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(buildUpdateKeyPayload(input)),
+      },
+    );
+    const [key] = normalizeGatewayKeys(response);
+    return key;
   }
 
   async deleteKey(id: string): Promise<void> {
@@ -284,7 +342,9 @@ export class GatewayApiClient {
       await this.managementRequest("/payment/checkout-info"),
     );
     if (checkoutChannels.length > 0) return checkoutChannels;
-    return normalizeGatewayPaymentChannels(await this.managementRequest("/payment/channels"));
+    return normalizeGatewayPaymentChannels(
+      await this.managementRequest("/payment/channels"),
+    );
   }
 
   async createPaymentOrder(
@@ -314,7 +374,10 @@ export class GatewayApiClient {
     }
 
     const refreshed = await this.refresh();
-    const retryHeaders = this.buildHeaders(options.headers, refreshed.accessToken);
+    const retryHeaders = this.buildHeaders(
+      options.headers,
+      refreshed.accessToken,
+    );
     return this.readJson(
       await this.fetchImpl(url, this.toRequestInit(options, retryHeaders)),
     );
@@ -393,7 +456,9 @@ export class GatewayApiClient {
     return { ...rest, headers: nextHeaders };
   }
 
-  private headersToRecord(inputHeaders: HeadersInit | undefined): Record<string, string> {
+  private headersToRecord(
+    inputHeaders: HeadersInit | undefined,
+  ): Record<string, string> {
     if (!inputHeaders) return {};
     if (inputHeaders instanceof Headers) {
       const result: Record<string, string> = {};

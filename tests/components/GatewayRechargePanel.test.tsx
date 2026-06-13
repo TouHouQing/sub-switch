@@ -31,8 +31,41 @@ describe("GatewayRechargePanel", () => {
         amount: 20,
         paymentType: "alipay_direct",
         orderType: "balance",
+        forceQRCode: true,
       });
     });
-    expect(handleOpenExternal).toHaveBeenCalledWith("https://pay.example/checkout");
+    expect(handleOpenExternal).toHaveBeenCalledWith(
+      "https://pay.example/checkout",
+    );
+  });
+
+  it("shows a scan QR code instead of opening the Alipay redirect page", async () => {
+    const handleCreateOrder = vi.fn().mockResolvedValue({
+      id: "order-qr",
+      amount: 20,
+      paymentUrl:
+        "https://render.alipay.com/p/yuyan/180020040001212700/?cid=wap_dc",
+      qrCode: "https://qr.example/alipay",
+      paymentMode: "qrcode",
+    });
+    const handleOpenExternal = vi.fn();
+
+    render(
+      <GatewayRechargePanel
+        channels={[{ id: "alipay", name: "支付宝", enabled: true }]}
+        loading={false}
+        isCreatingOrder={false}
+        onCreateOrder={handleCreateOrder}
+        onOpenExternal={handleOpenExternal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "充值" }));
+
+    expect(await screen.findByAltText("支付宝付款二维码")).toBeInTheDocument();
+    expect(screen.getByText("请使用支付宝扫码完成付款")).toBeInTheDocument();
+    expect(handleOpenExternal).not.toHaveBeenCalledWith(
+      "https://render.alipay.com/p/yuyan/180020040001212700/?cid=wap_dc",
+    );
   });
 });

@@ -24,6 +24,8 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     },
     keys: [],
     keysLoading: false,
+    groups: [],
+    groupsLoading: false,
     models: [
       { id: "gpt-5.5", name: "GPT-5.5", provider: "openai", enabled: true },
       {
@@ -54,11 +56,13 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     paymentsLoading: false,
     isApplyingToolConfig: false,
     isCreatingKey: false,
+    isUpdatingKey: false,
     isCreatingOrder: false,
     onSwitchApp: vi.fn(),
     onApplyToolConfig: vi.fn(),
     onCreateKey: vi.fn(),
     onSelectKey: vi.fn(),
+    onUpdateKeyGroup: vi.fn(),
     onDeleteKey: vi.fn(),
     onCreateOrder: vi.fn(),
     onOpenExternal: vi.fn(),
@@ -71,13 +75,50 @@ describe("GatewayDashboard", () => {
   it("renders gateway metrics and keeps model base URL separate from management API", () => {
     render(<GatewayDashboard {...baseProps()} />);
 
-    expect(screen.getByText("余额")).toBeInTheDocument();
+    expect(screen.getByText("账户余额")).toBeInTheDocument();
     expect(screen.getByText("975,325")).toBeInTheDocument();
-    expect(screen.getByText("今日 Token")).toBeInTheDocument();
+    expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
     expect(screen.getByText("4,680,870")).toBeInTheDocument();
     expect(screen.getAllByText("待创建 API Key").length).toBeGreaterThan(0);
     expect(screen.getByText(GATEWAY_MODEL_BASE_URL)).toBeInTheDocument();
     expect(screen.queryByText(/api\/v1/)).not.toBeInTheDocument();
+  });
+
+  it("renders the ManyTokens-style overview header from the official site", () => {
+    render(
+      <GatewayDashboard
+        {...baseProps({
+          keySelection: {
+            status: "ready",
+            selectedKey: {
+              id: "key-1",
+              name: "Main",
+              secret: "sk-main",
+              groupName: "ac-switch",
+            },
+          },
+          keys: [
+            {
+              id: "key-1",
+              name: "Main",
+              secret: "sk-main",
+              groupName: "ac-switch",
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "ManyTokens" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("来ManyTokens使用更有性价比的产品"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("使用中").length).toBeGreaterThan(0);
+    expect(screen.getByText("账户余额")).toBeInTheDocument();
+    expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
+    expect(screen.getAllByText("ac-switch").length).toBeGreaterThan(0);
   });
 
   it("disables tool configuration without a selected key secret", () => {

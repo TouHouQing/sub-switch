@@ -7,6 +7,7 @@ import {
   useGatewayCreateKeyMutation,
   useGatewayCreatePaymentOrderMutation,
   useGatewayDeleteKeyMutation,
+  useGatewayKeyGroupsQuery,
   useGatewayKeySelectionQuery,
   useGatewayKeysQuery,
   useGatewayLoginMutation,
@@ -18,10 +19,14 @@ import {
   useGatewaySelectKeyMutation,
   useGatewaySessionQuery,
   useGatewayStatsQuery,
+  useGatewayUpdateKeyMutation,
   useGatewayUsageQuery,
 } from "@/lib/query/gateway";
 import { extractErrorMessage } from "@/utils/errorUtils";
-import { GatewayAuthPage, type GatewayAuthCredentials } from "./GatewayAuthPage";
+import {
+  GatewayAuthPage,
+  type GatewayAuthCredentials,
+} from "./GatewayAuthPage";
 import { GatewayDashboard } from "./GatewayDashboard";
 import type { VisibleApps } from "@/types";
 
@@ -46,12 +51,14 @@ export function GatewayApp({
   const registerMutation = useGatewayRegisterMutation();
   const logoutMutation = useGatewayLogoutMutation();
   const createKeyMutation = useGatewayCreateKeyMutation();
+  const updateKeyMutation = useGatewayUpdateKeyMutation();
   const selectKeyMutation = useGatewaySelectKeyMutation();
   const deleteKeyMutation = useGatewayDeleteKeyMutation();
   const createOrderMutation = useGatewayCreatePaymentOrderMutation();
 
   const statsQuery = useGatewayStatsQuery(hasSession);
   const keysQuery = useGatewayKeysQuery(hasSession);
+  const keyGroupsQuery = useGatewayKeyGroupsQuery(hasSession);
   const keySelectionQuery = useGatewayKeySelectionQuery(hasSession);
   const selectedKey = keySelectionQuery.data?.selectedKey ?? null;
   const modelsQuery = useGatewayModelsQuery(hasSession, selectedKey?.secret);
@@ -86,12 +93,27 @@ export function GatewayApp({
     }
   };
 
-  const handleCreateKey = async () => {
+  const handleCreateKey = async (input?: {
+    name?: string;
+    groupId?: string;
+  }) => {
     try {
-      await createKeyMutation.mutateAsync("Desktop Client");
+      await createKeyMutation.mutateAsync(input ?? { name: "Desktop Client" });
       toast.success("API Key 已创建");
     } catch (error) {
       toast.error(extractErrorMessage(error) || "创建 API Key 失败");
+    }
+  };
+
+  const handleUpdateKeyGroup = async (keyId: string, groupId: string) => {
+    try {
+      await updateKeyMutation.mutateAsync({
+        id: keyId,
+        input: { groupId },
+      });
+      toast.success("API Key 分组已更新");
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || "更新 API Key 分组失败");
     }
   };
 
@@ -165,6 +187,8 @@ export function GatewayApp({
       keySelection={keySelectionQuery.data}
       keys={keysQuery.data ?? []}
       keysLoading={keysQuery.isLoading || keySelectionQuery.isLoading}
+      groups={keyGroupsQuery.data ?? []}
+      groupsLoading={keyGroupsQuery.isLoading}
       models={modelsQuery.data ?? []}
       modelsLoading={modelsQuery.isLoading}
       usageRecords={usageQuery.data ?? []}
@@ -175,11 +199,15 @@ export function GatewayApp({
       paymentsLoading={channelsQuery.isLoading}
       isApplyingToolConfig={isApplyingToolConfig}
       isCreatingKey={createKeyMutation.isPending}
+      isUpdatingKey={updateKeyMutation.isPending}
       isCreatingOrder={createOrderMutation.isPending}
       onSwitchApp={onSwitchApp}
       onApplyToolConfig={() => void handleApplyToolConfig()}
-      onCreateKey={() => void handleCreateKey()}
+      onCreateKey={(input) => void handleCreateKey(input)}
       onSelectKey={(keyId) => void selectKeyMutation.mutateAsync(keyId)}
+      onUpdateKeyGroup={(keyId, groupId) =>
+        void handleUpdateKeyGroup(keyId, groupId)
+      }
       onDeleteKey={(keyId) => void handleDeleteKey(keyId)}
       onCreateOrder={(input) => createOrderMutation.mutateAsync(input)}
       onOpenExternal={(url) => void handleOpenExternal(url)}

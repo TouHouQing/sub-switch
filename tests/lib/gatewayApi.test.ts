@@ -17,7 +17,11 @@ const textResponse = (body: string, status = 200) =>
   });
 
 const fetchInputUrl = (input: Parameters<typeof fetch>[0]): string =>
-  typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.href
+      : input.url;
 
 describe("GatewayApiClient", () => {
   let session: GatewaySession | null;
@@ -55,6 +59,73 @@ describe("GatewayApiClient", () => {
           Authorization: "Bearer access-1",
         }),
       }),
+    );
+  });
+
+  it("creates API keys with the selected official group id", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { id: "key-1", name: "Desktop Client" } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await client.createKey({ name: "Desktop Client", groupId: "group-openai" });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://sub.tohoqing.com/api/v1/keys",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Desktop Client",
+          group_id: "group-openai",
+        }),
+      }),
+    );
+  });
+
+  it("updates existing API key groups through the official key update endpoint", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { id: "key-1" } }));
+
+    await client.updateKey("key-1", { groupId: "group-claude" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/keys/key-1",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ group_id: "group-claude" }),
+      }),
+    );
+  });
+
+  it("loads available key groups from the official groups endpoint", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          {
+            id: "group-openai",
+            name: "OpenAI",
+            platform: "openai",
+            user_rate: 1,
+          },
+        ],
+      }),
+    );
+
+    await expect(client.keyGroups()).resolves.toEqual([
+      {
+        id: "group-openai",
+        name: "OpenAI",
+        platform: "openai",
+        description: undefined,
+        rate: undefined,
+        userRate: 1,
+      },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/groups/available",
+      expect.any(Object),
     );
   });
 
@@ -234,6 +305,40 @@ describe("GatewayApiClient", () => {
     expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain("plan_id");
   });
 
+  it("requests desktop QR-code payment for Alipay balance recharge", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          order_id: 90,
+          amount: 20,
+          qr_code: "https://qr.example/alipay",
+          payment_mode: "qrcode",
+        },
+      }),
+    );
+
+    await expect(
+      client.createPaymentOrder({
+        amount: 20,
+        paymentType: "alipay",
+        orderType: "balance",
+        forceQRCode: true,
+      }),
+    ).resolves.toMatchObject({
+      id: "90",
+      qrCode: "https://qr.example/alipay",
+      paymentMode: "qrcode",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/payment/orders",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"is_mobile":false'),
+      }),
+    );
+  });
+
   it("loads payment channels from the official checkout info endpoint", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -353,7 +458,9 @@ describe("GatewayApiClient", () => {
       refreshToken: "refresh-1",
       expiresAt: Date.now() + 60_000,
     };
-    fetchMock.mockResolvedValueOnce(jsonResponse({ message: "refresh failed" }, 401));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "refresh failed" }, 401),
+    );
 
     await expect(client.keys()).rejects.toThrow("refresh failed");
 
@@ -371,7 +478,9 @@ describe("GatewayApiClient", () => {
       expiresAt: Date.now() + 60_000,
     };
     session = previousSession;
-    fetchMock.mockResolvedValueOnce(jsonResponse({ message: "try later" }, 500));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "try later" }, 500),
+    );
 
     await expect(client.keys()).rejects.toThrow("try later");
 
@@ -394,36 +503,41 @@ describe("GatewayApiClient", () => {
       .mockImplementation((input, init) => {
         const url = fetchInputUrl(input);
         if (url.startsWith("https://sub.tohoqing.com")) {
-          return Promise.reject(new Error("direct gateway fetch should not be used"));
+          return Promise.reject(
+            new Error("direct gateway fetch should not be used"),
+          );
         }
         return originalFetch(input, init);
       });
 
     server.use(
-      http.post("http://tauri.local/gateway_http_request", async ({ request }) => {
-        const body = (await request.json()) as Record<string, unknown>;
-        expect(body).toMatchObject({
-          url: "https://sub.tohoqing.com/api/v1/auth/login",
-          method: "POST",
-          body: JSON.stringify({
-            email: "owner@tohoqing.com",
-            password: "secret123",
-          }),
-        });
-        const headers = body.headers as Record<string, string>;
-        expect(headers.accept ?? headers.Accept).toBe("application/json");
-        expect(headers["content-type"] ?? headers["Content-Type"]).toBe(
-          "application/json",
-        );
-        return HttpResponse.json({
-          status: 200,
-          body: {
-            access_token: "access-tauri",
-            refresh_token: "refresh-tauri",
-            expires_in: 3600,
-          },
-        });
-      }),
+      http.post(
+        "http://tauri.local/gateway_http_request",
+        async ({ request }) => {
+          const body = (await request.json()) as Record<string, unknown>;
+          expect(body).toMatchObject({
+            url: "https://sub.tohoqing.com/api/v1/auth/login",
+            method: "POST",
+            body: JSON.stringify({
+              email: "owner@tohoqing.com",
+              password: "secret123",
+            }),
+          });
+          const headers = body.headers as Record<string, string>;
+          expect(headers.accept ?? headers.Accept).toBe("application/json");
+          expect(headers["content-type"] ?? headers["Content-Type"]).toBe(
+            "application/json",
+          );
+          return HttpResponse.json({
+            status: 200,
+            body: {
+              access_token: "access-tauri",
+              refresh_token: "refresh-tauri",
+              expires_in: 3600,
+            },
+          });
+        },
+      ),
     );
 
     const defaultClient = new GatewayApiClient({
