@@ -5,7 +5,7 @@ macOS Gatekeeper shows "Apple could not verify this app is free of malware" when
 The release workflow supports two macOS distribution paths:
 
 1. **Signed and notarized**: best user experience. Browser downloads can be opened after installing without Gatekeeper malware-verification prompts.
-2. **Unsigned fallback**: no Apple account required. The workflow publishes a create-dmg drag-to-Applications image, a ZIP archive, and an installer script that installs the app into `/Applications` and removes the quarantine attribute.
+2. **Unsigned fallback**: no Apple account required. The workflow publishes a guided DMG, a ZIP archive, and an installer script. The DMG window tells users to drag the app into Applications, double-click the embedded `install.sh` helper, and then open the app.
 
 ## Signed and Notarized Path
 
@@ -29,8 +29,8 @@ When all secrets are present, the macOS release job verifies the `.app` signatur
 
 If any Apple secret is missing, the workflow still publishes macOS assets:
 
-- `THQ-Switch-<tag>-macOS.dmg`: generated with `create-dmg`, showing the app and an Applications shortcut for drag-and-drop installation.
+- `THQ-Switch-<tag>-macOS.dmg`: generated with `appdmg`, showing a 1 -> 2 -> 3 installation guide, the app, an Applications shortcut, and a double-clickable `install.sh` helper.
 - `THQ-Switch-<tag>-macOS.zip`: ZIP archive of the `.app` bundle.
 - `THQ-Switch-<tag>-install-macos.sh`: downloads the ZIP, installs `THQ Switch.app` into `/Applications`, removes `com.apple.quarantine`, and opens the app.
 
-The unsigned DMG improves installation guidance but does not bypass Gatekeeper by itself. The installer script is the no-Apple-account path for users who need the app to open after installation.
+The unsigned DMG improves installation guidance but does not bypass Gatekeeper by itself. Its embedded `install.sh` helper removes the quarantine attribute from `/Applications/THQ Switch.app` and opens the app after the user has dragged it into Applications.

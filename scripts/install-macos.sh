@@ -11,7 +11,7 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
 
 if [ "$TAG" = "__THQ_SWITCH_RELEASE_TAG__" ] || [ -z "$TAG" ]; then
   echo "Usage: $0 <release-tag>" >&2
-  echo "Example: $0 v3.16.5" >&2
+  echo "Example: $0 v3.16.6" >&2
   exit 2
 fi
 
