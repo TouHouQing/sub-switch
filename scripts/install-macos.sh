@@ -2,16 +2,18 @@
 set -euo pipefail
 
 REPO="${THQ_SWITCH_REPO:-TouHouQing/sub-switch}"
-TAG="${1:-${THQ_SWITCH_RELEASE_TAG:-__THQ_SWITCH_RELEASE_TAG__}}"
+PLACEHOLDER_TAG="__THQ_SWITCH_""RELEASE_TAG__"
+DEFAULT_TAG="__THQ_SWITCH_RELEASE_TAG__"
+TAG="${1:-${THQ_SWITCH_RELEASE_TAG:-$DEFAULT_TAG}}"
 APP_NAME="THQ Switch.app"
 APP_DISPLAY_NAME="THQ Switch"
 INSTALL_DIR="${THQ_SWITCH_INSTALL_DIR:-/Applications}"
 ASSET_NAME="THQ-Switch-${TAG}-macOS.zip"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
 
-if [ "$TAG" = "__THQ_SWITCH_RELEASE_TAG__" ] || [ -z "$TAG" ]; then
+if [ "$TAG" = "$PLACEHOLDER_TAG" ] || [ -z "$TAG" ]; then
   echo "Usage: $0 <release-tag>" >&2
-  echo "Example: $0 v3.16.7" >&2
+  echo "Example: $0 v3.16.8" >&2
   exit 2
 fi
 
