@@ -41,6 +41,7 @@ pub use dao::FailoverQueueItem;
 
 use crate::config::get_app_config_dir;
 use crate::error::AppError;
+use crate::identity::APP_DATABASE_FILE_NAME;
 use rusqlite::{hooks::Action, Connection};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -92,9 +93,9 @@ fn register_db_change_hook(conn: &Connection) {
 impl Database {
     /// 初始化数据库连接并创建表
     ///
-    /// 数据库文件位于 `~/.cc-switch/cc-switch.db`
+    /// 数据库文件位于 THQ Switch 配置目录下
     pub fn init() -> Result<Self, AppError> {
-        let db_path = get_app_config_dir().join("cc-switch.db");
+        let db_path = get_app_config_dir().join(APP_DATABASE_FILE_NAME);
         let db_exists = db_path.exists();
 
         // 确保父目录存在

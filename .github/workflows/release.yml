@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.11'
+        default: 'v3.16.12'
 
 permissions:
   contents: write
@@ -222,7 +222,7 @@ jobs:
           }
           Copy-Item $msi.FullName "release-assets/THQ-Switch-$env:RELEASE_TAG-Windows.msi"
 
-          $exe = Get-ChildItem -Path 'src-tauri/target' -Recurse -Filter 'cc-switch.exe' | Where-Object { $_.FullName -match '\\release\\' } | Select-Object -First 1
+          $exe = Get-ChildItem -Path 'src-tauri/target' -Recurse -Filter 'thq-switch.exe' | Where-Object { $_.FullName -match '\\release\\' } | Select-Object -First 1
           if ($null -ne $exe) {
             $portableDir = 'release-assets/THQ-Switch-Portable'
             New-Item -ItemType Directory -Force -Path $portableDir | Out-Null

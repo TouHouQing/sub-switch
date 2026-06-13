@@ -1,13 +1,20 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use cc_switch_lib::{update_settings, AppSettings, AppState, Database, MultiAppConfig};
+use thq_switch_lib::{update_settings, AppSettings, AppState, Database, MultiAppConfig};
+
+pub const TEST_APP_CONFIG_DIR: &str = ".thq-switch";
+pub const TEST_DATABASE_FILE: &str = "thq-switch.db";
+
+pub fn app_config_dir(home: &Path) -> PathBuf {
+    home.join(TEST_APP_CONFIG_DIR)
+}
 
 /// 为测试设置隔离的 HOME 目录，避免污染真实用户数据。
 pub fn ensure_test_home() -> &'static Path {
     static HOME: OnceLock<PathBuf> = OnceLock::new();
     HOME.get_or_init(|| {
-        let base = std::env::temp_dir().join("cc-switch-test-home");
+        let base = std::env::temp_dir().join("thq-switch-test-home");
         if base.exists() {
             let _ = std::fs::remove_dir_all(&base);
         }
@@ -29,7 +36,7 @@ pub fn reset_test_fs() {
     for sub in [
         ".claude",
         ".codex",
-        ".cc-switch",
+        TEST_APP_CONFIG_DIR,
         ".gemini",
         ".config",
         ".openclaw",

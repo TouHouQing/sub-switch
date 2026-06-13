@@ -1,7 +1,7 @@
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use cc_switch_lib::{
+use thq_switch_lib::{
     get_codex_auth_path, get_codex_config_path, import_default_config_test_hook, read_json_file,
     switch_provider_test_hook, write_codex_live_atomic, AppError, AppType, McpApps, McpServer,
     MultiAppConfig, Provider, ProviderService,
@@ -11,12 +11,12 @@ use cc_switch_lib::{
 mod support;
 use std::collections::HashMap;
 use support::{
-    create_test_state, create_test_state_with_config, enable_codex_official_auth_preservation,
-    ensure_test_home, reset_test_fs, test_mutex,
+    app_config_dir, create_test_state, create_test_state_with_config,
+    enable_codex_official_auth_preservation, ensure_test_home, reset_test_fs, test_mutex,
 };
 
 fn settings_path(home: &Path) -> PathBuf {
-    home.join(".cc-switch").join("settings.json")
+    app_config_dir(home).join("settings.json")
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn switch_provider_updates_claude_live_and_state() {
     reset_test_fs();
     let _home = ensure_test_home();
 
-    let settings_path = cc_switch_lib::get_claude_settings_path();
+    let settings_path = thq_switch_lib::get_claude_settings_path();
     if let Some(parent) = settings_path.parent() {
         std::fs::create_dir_all(parent).expect("create claude settings dir");
     }
@@ -521,11 +521,11 @@ fn switch_provider_updates_claude_live_and_state() {
     // 验证数据已持久化到数据库
     let home_dir = std::env::var("HOME").expect("HOME should be set by ensure_test_home");
     let db_path = std::path::Path::new(&home_dir)
-        .join(".cc-switch")
-        .join("cc-switch.db");
+        .join(support::TEST_APP_CONFIG_DIR)
+        .join(support::TEST_DATABASE_FILE);
     assert!(
         db_path.exists(),
-        "switching provider should persist to cc-switch.db"
+        "switching provider should persist to thq-switch.db"
     );
 
     // 验证当前供应商已更新

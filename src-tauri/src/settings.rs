@@ -6,6 +6,7 @@ use std::sync::{OnceLock, RwLock};
 
 use crate::app_config::AppType;
 use crate::error::AppError;
+use crate::identity::{APP_CONFIG_DIR_NAME, SYNC_REMOTE_ROOT};
 use crate::services::skill::{SkillStorageLocation, SyncMethod};
 
 /// 自定义端点配置（历史兼容，实际存储在 provider.meta.custom_endpoints）
@@ -95,7 +96,7 @@ pub struct WebDavSyncStatus {
 }
 
 fn default_remote_root() -> String {
-    "cc-switch-sync".to_string()
+    SYNC_REMOTE_ROOT.to_string()
 }
 fn default_profile() -> String {
     "default".to_string()
@@ -314,7 +315,7 @@ pub struct CodexProviderTemplateMigration {
 
 /// 应用设置结构
 ///
-/// 存储设备级别设置，保存在本地 `~/.cc-switch/settings.json`，不随数据库同步。
+/// 存储设备级别设置，保存在本地 THQ Switch 配置目录，不随数据库同步。
 /// 这确保了云同步场景下多设备可以独立运作。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -511,7 +512,7 @@ impl AppSettings {
         // settings.json 保留用于旧版本迁移和无数据库场景
         Some(
             crate::config::get_home_dir()
-                .join(".cc-switch")
+                .join(APP_CONFIG_DIR_NAME)
                 .join("settings.json"),
         )
     }

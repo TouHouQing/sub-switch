@@ -1,0 +1,11 @@
+pub const APP_DISPLAY_NAME: &str = "THQ Switch";
+pub const APP_CONFIG_DIR_NAME: &str = ".thq-switch";
+pub const APP_DATABASE_FILE_NAME: &str = "thq-switch.db";
+pub const APP_LOG_FILE_STEM: &str = "thq-switch";
+pub const DEEP_LINK_SCHEME: &str = "thqswitch";
+pub const SYNC_REMOTE_ROOT: &str = "thq-switch-sync";
+pub const REPOSITORY_URL: &str = "https://github.com/TouHouQing/sub-switch";
+pub const CODEX_MODEL_CATALOG_FILE_NAME: &str = "thq-switch-model-catalog.json";
+pub const TRAY_ID: &str = "thq-switch";
+pub const CLAUDE_DESKTOP_PROFILE_ID: &str = "00000000-0000-4000-8000-000000157212";
+pub const SYNC_PROTOCOL_FORMAT: &str = "thq-switch-sync";
