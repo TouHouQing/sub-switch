@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 source_dir="$tmp_dir/source"
 background_png="$tmp_dir/thq-switch-dmg-background.png"
-finish_script="3-drag-then-press-return.sh"
+finish_script="3-install.sh"
 mkdir -p "$source_dir"
 
 ditto "$APP_PATH" "$source_dir/$APP_NAME"
@@ -48,7 +48,7 @@ show_dialog() {
 }
 
 if [ ! -d "$APP_PATH" ]; then
-  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then drag 3-drag-then-press-return.sh into Terminal again and press Return."
+  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first. Then open Terminal, type bash and one space, drag 3-install.sh into Terminal, and press Return."
   exit 1
 fi
 
@@ -65,7 +65,7 @@ open "$APP_PATH"
 
 osascript -e "display notification \"Installation finished. You can open THQ Switch from Applications.\" with title \"$APP_NAME\""
 COMMAND
-chmod +x "$source_dir/$finish_script"
+chmod 644 "$source_dir/$finish_script"
 
 cat > "$tmp_dir/render-dmg-background.swift" <<'SWIFT'
 import AppKit
@@ -147,12 +147,13 @@ NSBezierPath(rect: NSRect(origin: .zero, size: canvas)).fill()
 drawRoundedRect(NSRect(x: 36, y: 36, width: 1048, height: 568), radius: 22, fill: .white, stroke: color(224, 228, 235))
 
 drawText("THQ Switch macOS 安装", rect: NSRect(x: 0, y: 560, width: canvas.width, height: 40), size: 30, weight: .semibold)
-drawText("重点：把脚本拖进 Terminal 以后，还要按 Return / 回车 才会运行", rect: NSRect(x: 0, y: 526, width: canvas.width, height: 28), size: 18, weight: .semibold, color: color(176, 71, 38))
+drawText("重点：Terminal 里必须先输入 bash 和一个空格，再拖入脚本", rect: NSRect(x: 0, y: 526, width: canvas.width, height: 28), size: 18, weight: .semibold, color: color(176, 71, 38))
 
 let columns: [(String, String, String, CGFloat, NSColor)] = [
-  ("1", "拖动 App", "拖到 Applications 文件夹", 200, color(94, 182, 174)),
-  ("2", "打开 Terminal", "双击 2 Open Terminal.app", 535, color(91, 128, 196)),
-  ("3", "拖入脚本", "把 3-drag-then-press-return.sh 拖进终端", 840, color(246, 143, 71))
+  ("1", "拖动 App", "拖到 Applications 文件夹", 170, color(94, 182, 174)),
+  ("2", "打开 Terminal", "双击 2 Open Terminal.app", 420, color(91, 128, 196)),
+  ("3", "先输入 bash", "在终端输入 bash 和空格", 675, color(129, 106, 205)),
+  ("4", "拖脚本并回车", "拖入 3-install.sh 后按 Return", 930, color(246, 143, 71))
 ]
 
 for item in columns {
@@ -162,12 +163,13 @@ for item in columns {
   drawText(item.2, rect: NSRect(x: x - 145, y: 401, width: 290, height: 25), size: 15, weight: .medium, color: color(105, 112, 125))
 }
 
-drawArrow(from: NSPoint(x: 240, y: 315), to: NSPoint(x: 325, y: 315))
-drawArrow(from: NSPoint(x: 625, y: 315), to: NSPoint(x: 705, y: 315))
+drawArrow(from: NSPoint(x: 240, y: 315), to: NSPoint(x: 310, y: 315))
+drawArrow(from: NSPoint(x: 490, y: 315), to: NSPoint(x: 565, y: 315))
+drawArrow(from: NSPoint(x: 745, y: 315), to: NSPoint(x: 820, y: 315))
 
-drawCircle(number: "4", center: NSPoint(x: 560, y: 145), fill: color(245, 180, 48))
-drawText("看到 Terminal 里出现脚本路径后，按 Return / 回车。脚本会自动打开 THQ Switch。", rect: NSRect(x: 160, y: 104, width: 800, height: 30), size: 16, weight: .semibold, color: color(78, 85, 98))
-drawText("不要双击 .sh 文件；双击可能会被 VS Code 或文本编辑器打开。", rect: NSRect(x: 160, y: 76, width: 800, height: 24), size: 14, weight: .medium, color: color(112, 119, 132))
+drawRoundedRect(NSRect(x: 160, y: 98, width: 800, height: 52), radius: 8, fill: color(38, 42, 50), stroke: color(38, 42, 50))
+drawText("终端里最后应该像这样：bash /Volumes/THQ\\ Switch/3-install.sh", rect: NSRect(x: 185, y: 116, width: 750, height: 24), size: 16, weight: .semibold, color: .white)
+drawText("不要直接运行 .sh，也不要双击 .sh；必须先输入 bash 空格。", rect: NSRect(x: 160, y: 66, width: 800, height: 24), size: 14, weight: .semibold, color: color(176, 71, 38))
 
 image.unlockFocus()
 

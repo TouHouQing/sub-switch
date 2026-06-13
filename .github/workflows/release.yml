@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.10'
+        default: 'v3.16.11'
 
 permissions:
   contents: write
@@ -292,12 +292,12 @@ jobs:
             ### 下载
 
             - **macOS 一键安装**: `curl -fsSL https://github.com/TouHouQing/sub-switch/releases/download/${{ env.RELEASE_TAG }}/THQ-Switch-${{ env.RELEASE_TAG }}-install-macos.sh | bash`
-            - **macOS 引导安装**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg`（打开 DMG 后按窗口里的 1 → 2 → 3 → 4：先拖入 Applications，再双击 `2 Open Terminal.app` 打开终端，然后把 `3-drag-then-press-return.sh` 拖进终端，看到路径后按 Return/回车）
+            - **macOS 引导安装**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg`（打开 DMG 后按窗口里的 1 → 2 → 3 → 4：先拖入 Applications，再双击 `2 Open Terminal.app` 打开终端，然后先输入 `bash `，最后把 `3-install.sh` 拖进终端并按 Return/回车）
             - **macOS ZIP**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.zip`
             - **Windows**: `THQ-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
             - **Linux x86_64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
             - **Linux ARM64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            说明：如果仓库配置了 Apple Developer ID 签名和公证 secrets，macOS App 会在发布前校验签名、公证 ticket 和 Gatekeeper assessment。未配置时会发布 unsigned 版本；DMG 窗口内置 `3-drag-then-press-return.sh` 引导脚本。把脚本拖进 Terminal 只会先粘贴路径，必须再按 Return/回车才会运行。不要双击 `.sh` 文件；Finder 会按用户默认关联应用打开它，例如 VS Code 或 TextEdit。
+            说明：如果仓库配置了 Apple Developer ID 签名和公证 secrets，macOS App 会在发布前校验签名、公证 ticket 和 Gatekeeper assessment。未配置时会发布 unsigned 版本；DMG 窗口内置 `3-install.sh` 引导脚本。不要直接运行或双击 `.sh` 文件；必须在 Terminal 里先输入 `bash `，再把 `3-install.sh` 拖进去并按 Return/回车。最终命令应类似 `bash /Volumes/THQ\ Switch/3-install.sh`。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
