@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 source_dir="$tmp_dir/source"
 background_png="$tmp_dir/thq-switch-dmg-background.png"
-finish_script="2 install.sh"
+finish_script="3 Drag Me Into Terminal.sh"
 mkdir -p "$source_dir"
 
 ditto "$APP_PATH" "$source_dir/$APP_NAME"
@@ -48,7 +48,7 @@ show_dialog() {
 }
 
 if [ ! -d "$APP_PATH" ]; then
-  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then run install.sh again from Terminal."
+  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then drag this script into Terminal again."
   exit 1
 fi
 
@@ -77,7 +77,7 @@ guard CommandLine.arguments.count == 2 else {
 }
 
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[1])
-let canvas = NSSize(width: 960, height: 560)
+let canvas = NSSize(width: 1080, height: 600)
 let image = NSImage(size: canvas)
 
 func color(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 1) -> NSColor {
@@ -144,28 +144,28 @@ image.lockFocus()
 color(246, 247, 250).setFill()
 NSBezierPath(rect: NSRect(origin: .zero, size: canvas)).fill()
 
-drawRoundedRect(NSRect(x: 44, y: 44, width: 872, height: 472), radius: 26, fill: .white, stroke: color(224, 228, 235))
+drawRoundedRect(NSRect(x: 44, y: 44, width: 992, height: 512), radius: 26, fill: .white, stroke: color(224, 228, 235))
 
-drawText("THQ Switch macOS 安装", rect: NSRect(x: 0, y: 477, width: canvas.width, height: 34), size: 27, weight: .semibold)
-drawText("请按 1 → 2 → 3 的顺序操作", rect: NSRect(x: 0, y: 448, width: canvas.width, height: 24), size: 15, color: color(102, 109, 122))
+drawText("THQ Switch macOS 安装", rect: NSRect(x: 0, y: 528, width: canvas.width, height: 34), size: 27, weight: .semibold)
+drawText("不要双击 .sh 文件；请先打开 Terminal，再把脚本拖进去并按回车", rect: NSRect(x: 0, y: 498, width: canvas.width, height: 24), size: 15, color: color(156, 75, 48))
 
 let columns: [(String, String, String, CGFloat, NSColor)] = [
-  ("1", "拖动 App", "到 Applications 文件夹", 220, color(94, 182, 174)),
-  ("2", "Terminal 运行 install.sh", "拖入终端并按回车", 740, color(246, 143, 71))
+  ("1", "拖动 App", "到 Applications 文件夹", 260, color(94, 182, 174)),
+  ("2", "打开 Terminal", "双击 2 Open Terminal.app", 620, color(91, 128, 196)),
+  ("3", "拖入脚本并回车", "把 .sh 拖进终端窗口", 870, color(246, 143, 71))
 ]
 
 for item in columns {
   let x = item.3
-  drawCircle(number: item.0, center: NSPoint(x: x, y: 408), fill: item.4)
-  drawText(item.1, rect: NSRect(x: x - 95, y: 365, width: 190, height: 25), size: 18, weight: .semibold)
-  drawText(item.2, rect: NSRect(x: x - 105, y: 339, width: 210, height: 23), size: 14, color: color(105, 112, 125))
+  drawCircle(number: item.0, center: NSPoint(x: x, y: 456), fill: item.4)
+  drawText(item.1, rect: NSRect(x: x - 110, y: 414, width: 220, height: 25), size: 18, weight: .semibold)
+  drawText(item.2, rect: NSRect(x: x - 125, y: 388, width: 250, height: 23), size: 14, color: color(105, 112, 125))
 }
 
-drawArrow(from: NSPoint(x: 285, y: 288), to: NSPoint(x: 385, y: 288))
-drawArrow(from: NSPoint(x: 565, y: 288), to: NSPoint(x: 635, y: 288))
+drawArrow(from: NSPoint(x: 210, y: 300), to: NSPoint(x: 315, y: 300))
+drawArrow(from: NSPoint(x: 690, y: 300), to: NSPoint(x: 795, y: 300))
 
-drawCircle(number: "3", center: NSPoint(x: 480, y: 132), fill: color(245, 180, 48))
-drawText("脚本会自动打开 THQ Switch；以后从 Applications 里打开即可。", rect: NSRect(x: 170, y: 83, width: 620, height: 28), size: 14, weight: .medium, color: color(105, 112, 125))
+drawText("如果双击 .sh 被 VS Code 打开，这是正常的文件关联行为；请把它拖进 Terminal。", rect: NSRect(x: 150, y: 98, width: 780, height: 28), size: 14, weight: .medium, color: color(105, 112, 125))
 
 image.unlockFocus()
 
@@ -195,12 +195,13 @@ cat > "$tmp_dir/appdmg.json" <<JSON
   "filesystem": "HFS+",
   "window": {
     "position": { "x": 200, "y": 120 },
-    "size": { "width": 960, "height": 560 }
+    "size": { "width": 1080, "height": 600 }
   },
   "contents": [
-    { "x": 180, "y": 285, "type": "file", "path": "$source_dir/$APP_NAME" },
-    { "x": 460, "y": 285, "type": "link", "path": "/Applications" },
-    { "x": 740, "y": 285, "type": "file", "path": "$source_dir/$finish_script" }
+    { "x": 155, "y": 300, "type": "file", "path": "$source_dir/$APP_NAME" },
+    { "x": 365, "y": 300, "type": "link", "path": "/Applications" },
+    { "x": 620, "y": 300, "type": "link", "path": "/System/Applications/Utilities/Terminal.app", "name": "2 Open Terminal.app" },
+    { "x": 875, "y": 300, "type": "file", "path": "$source_dir/$finish_script" }
   ]
 }
 JSON
