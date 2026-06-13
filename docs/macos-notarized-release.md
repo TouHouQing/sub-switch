@@ -29,8 +29,8 @@ When all secrets are present, the macOS release job verifies the `.app` signatur
 
 If any Apple secret is missing, the workflow still publishes macOS assets:
 
-- `THQ-Switch-<tag>-macOS.dmg`: generated with `appdmg`, showing a 1 -> 2 -> 3 installation guide, the app, an Applications shortcut, a Terminal shortcut, and an embedded `3 Drag Me Into Terminal.sh` helper to drag into Terminal.
+- `THQ-Switch-<tag>-macOS.dmg`: generated with `appdmg`, showing a 1 -> 2 -> 3 -> 4 installation guide, the app, an Applications shortcut, a Terminal shortcut, and an embedded `3-drag-then-press-return.sh` helper to drag into Terminal.
 - `THQ-Switch-<tag>-macOS.zip`: ZIP archive of the `.app` bundle.
 - `THQ-Switch-<tag>-install-macos.sh`: downloads the ZIP, installs `THQ Switch.app` into `/Applications`, removes `com.apple.quarantine`, and opens the app.
 
-The unsigned DMG improves installation guidance but does not bypass Gatekeeper by itself. Finder double-click execution of scripts is unreliable on quarantined downloads, and `.sh` files may open in the user's default editor such as VS Code. The embedded helper is intentionally named `3 Drag Me Into Terminal.sh` and should be dragged into Terminal, then run by pressing Return. It removes the quarantine attribute from `/Applications/THQ Switch.app` and opens the app after the user has dragged it into Applications.
+The unsigned DMG improves installation guidance but does not bypass Gatekeeper by itself. Finder double-click execution of scripts is unreliable on quarantined downloads, and `.sh` files may open in the user's default editor such as VS Code. The embedded helper is intentionally named `3-drag-then-press-return.sh` and should be dragged into Terminal, then run by pressing Return. It removes the quarantine attribute from `/Applications/THQ Switch.app` and opens the app after the user has dragged it into Applications.

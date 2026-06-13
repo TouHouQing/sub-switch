@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 source_dir="$tmp_dir/source"
 background_png="$tmp_dir/thq-switch-dmg-background.png"
-finish_script="3 Drag Me Into Terminal.sh"
+finish_script="3-drag-then-press-return.sh"
 mkdir -p "$source_dir"
 
 ditto "$APP_PATH" "$source_dir/$APP_NAME"
@@ -48,7 +48,7 @@ show_dialog() {
 }
 
 if [ ! -d "$APP_PATH" ]; then
-  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then drag this script into Terminal again."
+  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then drag 3-drag-then-press-return.sh into Terminal again and press Return."
   exit 1
 fi
 
@@ -77,7 +77,7 @@ guard CommandLine.arguments.count == 2 else {
 }
 
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[1])
-let canvas = NSSize(width: 1080, height: 600)
+let canvas = NSSize(width: 1120, height: 640)
 let image = NSImage(size: canvas)
 
 func color(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 1) -> NSColor {
@@ -144,28 +144,30 @@ image.lockFocus()
 color(246, 247, 250).setFill()
 NSBezierPath(rect: NSRect(origin: .zero, size: canvas)).fill()
 
-drawRoundedRect(NSRect(x: 44, y: 44, width: 992, height: 512), radius: 26, fill: .white, stroke: color(224, 228, 235))
+drawRoundedRect(NSRect(x: 36, y: 36, width: 1048, height: 568), radius: 22, fill: .white, stroke: color(224, 228, 235))
 
-drawText("THQ Switch macOS 安装", rect: NSRect(x: 0, y: 528, width: canvas.width, height: 34), size: 27, weight: .semibold)
-drawText("不要双击 .sh 文件；请先打开 Terminal，再把脚本拖进去并按回车", rect: NSRect(x: 0, y: 498, width: canvas.width, height: 24), size: 15, color: color(156, 75, 48))
+drawText("THQ Switch macOS 安装", rect: NSRect(x: 0, y: 560, width: canvas.width, height: 40), size: 30, weight: .semibold)
+drawText("重点：把脚本拖进 Terminal 以后，还要按 Return / 回车 才会运行", rect: NSRect(x: 0, y: 526, width: canvas.width, height: 28), size: 18, weight: .semibold, color: color(176, 71, 38))
 
 let columns: [(String, String, String, CGFloat, NSColor)] = [
-  ("1", "拖动 App", "到 Applications 文件夹", 260, color(94, 182, 174)),
-  ("2", "打开 Terminal", "双击 2 Open Terminal.app", 620, color(91, 128, 196)),
-  ("3", "拖入脚本并回车", "把 .sh 拖进终端窗口", 870, color(246, 143, 71))
+  ("1", "拖动 App", "拖到 Applications 文件夹", 200, color(94, 182, 174)),
+  ("2", "打开 Terminal", "双击 2 Open Terminal.app", 535, color(91, 128, 196)),
+  ("3", "拖入脚本", "把 3-drag-then-press-return.sh 拖进终端", 840, color(246, 143, 71))
 ]
 
 for item in columns {
   let x = item.3
-  drawCircle(number: item.0, center: NSPoint(x: x, y: 456), fill: item.4)
-  drawText(item.1, rect: NSRect(x: x - 110, y: 414, width: 220, height: 25), size: 18, weight: .semibold)
-  drawText(item.2, rect: NSRect(x: x - 125, y: 388, width: 250, height: 23), size: 14, color: color(105, 112, 125))
+  drawCircle(number: item.0, center: NSPoint(x: x, y: 476), fill: item.4)
+  drawText(item.1, rect: NSRect(x: x - 120, y: 432, width: 240, height: 28), size: 20, weight: .semibold)
+  drawText(item.2, rect: NSRect(x: x - 145, y: 401, width: 290, height: 25), size: 15, weight: .medium, color: color(105, 112, 125))
 }
 
-drawArrow(from: NSPoint(x: 210, y: 300), to: NSPoint(x: 315, y: 300))
-drawArrow(from: NSPoint(x: 690, y: 300), to: NSPoint(x: 795, y: 300))
+drawArrow(from: NSPoint(x: 240, y: 315), to: NSPoint(x: 325, y: 315))
+drawArrow(from: NSPoint(x: 625, y: 315), to: NSPoint(x: 705, y: 315))
 
-drawText("如果双击 .sh 被 VS Code 打开，这是正常的文件关联行为；请把它拖进 Terminal。", rect: NSRect(x: 150, y: 98, width: 780, height: 28), size: 14, weight: .medium, color: color(105, 112, 125))
+drawCircle(number: "4", center: NSPoint(x: 560, y: 145), fill: color(245, 180, 48))
+drawText("看到 Terminal 里出现脚本路径后，按 Return / 回车。脚本会自动打开 THQ Switch。", rect: NSRect(x: 160, y: 104, width: 800, height: 30), size: 16, weight: .semibold, color: color(78, 85, 98))
+drawText("不要双击 .sh 文件；双击可能会被 VS Code 或文本编辑器打开。", rect: NSRect(x: 160, y: 76, width: 800, height: 24), size: 14, weight: .medium, color: color(112, 119, 132))
 
 image.unlockFocus()
 
@@ -195,13 +197,15 @@ cat > "$tmp_dir/appdmg.json" <<JSON
   "filesystem": "HFS+",
   "window": {
     "position": { "x": 200, "y": 120 },
-    "size": { "width": 1080, "height": 600 }
+    "size": { "width": 1120, "height": 640 }
   },
   "contents": [
-    { "x": 155, "y": 300, "type": "file", "path": "$source_dir/$APP_NAME" },
-    { "x": 365, "y": 300, "type": "link", "path": "/Applications" },
-    { "x": 620, "y": 300, "type": "link", "path": "/System/Applications/Utilities/Terminal.app", "name": "2 Open Terminal.app" },
-    { "x": 875, "y": 300, "type": "file", "path": "$source_dir/$finish_script" }
+    { "x": 180, "y": 320, "type": "file", "path": "$source_dir/$APP_NAME" },
+    { "x": 360, "y": 320, "type": "link", "path": "/Applications" },
+    { "x": 550, "y": 320, "type": "link", "path": "/System/Applications/Utilities/Terminal.app", "name": "2 Open Terminal.app" },
+    { "x": 840, "y": 320, "type": "file", "path": "$source_dir/$finish_script" },
+    { "x": 1320, "y": 780, "type": "position", "path": ".background" },
+    { "x": 1320, "y": 840, "type": "position", "path": ".VolumeIcon.icns" }
   ]
 }
 JSON
