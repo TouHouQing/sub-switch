@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 source_dir="$tmp_dir/source"
 background_png="$tmp_dir/thq-switch-dmg-background.png"
-finish_script="2 Double Click install.sh.command"
+finish_script="2 install.sh"
 mkdir -p "$source_dir"
 
 ditto "$APP_PATH" "$source_dir/$APP_NAME"
@@ -48,7 +48,7 @@ show_dialog() {
 }
 
 if [ ! -d "$APP_PATH" ]; then
-  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then double-click this script again."
+  show_dialog "Step 1 is not complete yet. Please drag THQ Switch into Applications first, then run install.sh again from Terminal."
   exit 1
 fi
 
@@ -151,7 +151,7 @@ drawText("请按 1 → 2 → 3 的顺序操作", rect: NSRect(x: 0, y: 448, widt
 
 let columns: [(String, String, String, CGFloat, NSColor)] = [
   ("1", "拖动 App", "到 Applications 文件夹", 220, color(94, 182, 174)),
-  ("2", "双击 install.sh", "移除限制并打开", 740, color(246, 143, 71))
+  ("2", "Terminal 运行 install.sh", "拖入终端并按回车", 740, color(246, 143, 71))
 ]
 
 for item in columns {

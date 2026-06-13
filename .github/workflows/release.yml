@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.6'
+        default: 'v3.16.7'
 
 permissions:
   contents: write
@@ -292,12 +292,12 @@ jobs:
             ### 下载
 
             - **macOS 一键安装**: `curl -fsSL https://github.com/TouHouQing/sub-switch/releases/download/${{ env.RELEASE_TAG }}/THQ-Switch-${{ env.RELEASE_TAG }}-install-macos.sh | bash`
-            - **macOS 引导安装**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg`（打开 DMG 后按窗口里的 1 → 2 → 3：先拖入 Applications，再双击 install.sh，最后打开应用）
+            - **macOS 引导安装**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.dmg`（打开 DMG 后按窗口里的 1 → 2 → 3：先拖入 Applications，再打开 Terminal，把 install.sh 拖进终端并按回车，最后自动打开应用）
             - **macOS ZIP**: `THQ-Switch-${{ env.RELEASE_TAG }}-macOS.zip`
             - **Windows**: `THQ-Switch-${{ env.RELEASE_TAG }}-Windows.msi` 或 `THQ-Switch-${{ env.RELEASE_TAG }}-Windows-Portable.zip`
             - **Linux x86_64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
             - **Linux ARM64**: `THQ-Switch-${{ env.RELEASE_TAG }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
-            说明：如果仓库配置了 Apple Developer ID 签名和公证 secrets，macOS App 会在发布前校验签名、公证 ticket 和 Gatekeeper assessment。未配置时会发布 unsigned 版本；DMG 窗口内置 `install.sh` 引导脚本，用户按窗口里的顺序先拖入 Applications，再双击脚本移除 quarantine 标记并打开应用。
+            说明：如果仓库配置了 Apple Developer ID 签名和公证 secrets，macOS App 会在发布前校验签名、公证 ticket 和 Gatekeeper assessment。未配置时会发布 unsigned 版本；DMG 窗口内置 `install.sh` 引导脚本，用户按窗口里的顺序先拖入 Applications，再通过 Terminal 运行脚本移除 quarantine 标记并打开应用。Finder 双击脚本同样会触发 Gatekeeper，因此不要把脚本作为双击入口。
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
