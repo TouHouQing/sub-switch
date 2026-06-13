@@ -3,6 +3,7 @@ import {
   GATEWAY_ORIGIN,
   GATEWAY_MODEL_BASE_URL,
 } from "@/lib/gateway/constants";
+import { gatewayTauriFetch } from "@/lib/gateway/tauriTransport";
 import {
   clearGatewaySession,
   isGatewaySessionExpiring,
@@ -166,7 +167,7 @@ export class GatewayApiClient {
   private readonly clearSession: () => void;
 
   constructor(options: GatewayApiClientOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
+    this.fetchImpl = options.fetchImpl ?? gatewayTauriFetch;
     this.loadSession = options.loadSession ?? loadGatewaySession;
     this.saveSession = options.saveSession ?? saveGatewaySession;
     this.clearSession = options.clearSession ?? clearGatewaySession;
