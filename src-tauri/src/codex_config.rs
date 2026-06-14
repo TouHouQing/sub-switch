@@ -210,7 +210,7 @@ fn rewrite_legacy_codex_provider_aliases(config_text: &str) -> Result<String, Ap
             else {
                 continue;
             };
-            profile_table["model_provider"] = toml_edit::value(current);
+            profile_table.insert("model_provider", toml_edit::value(current));
             changed = true;
         }
     }
@@ -1612,6 +1612,52 @@ model_provider = "crs"
                 .and_then(|v| v.get("crs"))
                 .is_none(),
             "legacy provider table should not remain under crs"
+        );
+    }
+
+    #[test]
+    fn rewrite_legacy_provider_aliases_updates_profile_provider_refs() {
+        let input = r#"model_provider = "crs"
+model = "gpt-4.1"
+
+[model_providers.crs]
+name = "Legacy CRS"
+base_url = "https://relay.example/v1"
+wire_api = "responses"
+
+[profiles.default]
+model_provider = "crs"
+model = "gpt-4.1"
+"#;
+
+        let result = rewrite_legacy_codex_provider_aliases(input).expect("rewrite aliases");
+        let parsed: toml::Value = toml::from_str(&result).expect("parse rewritten config");
+
+        assert_eq!(
+            parsed.get("model_provider").and_then(|value| value.as_str()),
+            Some("custom")
+        );
+        assert_eq!(
+            parsed
+                .get("profiles")
+                .and_then(|value| value.get("default"))
+                .and_then(|value| value.get("model_provider"))
+                .and_then(|value| value.as_str()),
+            Some("custom")
+        );
+        assert!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("custom"))
+                .is_some(),
+            "legacy provider table should be renamed to custom"
+        );
+        assert!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("crs"))
+                .is_none(),
+            "legacy provider table should not remain under its old alias"
         );
     }
 
