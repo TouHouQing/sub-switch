@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.16'
+        default: 'v3.16.17'
 
 permissions:
   contents: write
