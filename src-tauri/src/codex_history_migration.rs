@@ -42,6 +42,7 @@ const CC_SWITCH_LEGACY_CODEX_MODEL_PROVIDER_IDS: &[&str] = &[
     "compshare",
     "compshare_coding",
     "crazyrouter",
+    "crs",
     "ctok",
     "cubence",
     "deepseek",
@@ -1492,6 +1493,27 @@ model_provider = "my-private-relay"
         let ids = collect_source_model_provider_ids(&db).expect("collect ids");
         assert!(ids.contains("ccswitch"));
         assert!(ids.contains("aihubmix"));
+        assert!(!ids.contains("generated-uuid"));
+    }
+
+    #[test]
+    fn collects_legacy_crs_provider_id_from_stored_config() {
+        let db = Database::memory().expect("memory db");
+        let mut provider = Provider::with_id(
+            "generated-uuid".to_string(),
+            "Legacy CRS".to_string(),
+            serde_json::json!({
+                "auth": {},
+                "config": "model_provider = \"crs\"\n\n[model_providers.crs]\nname = \"Legacy CRS\"\nbase_url = \"https://relay.example/v1\""
+            }),
+            None,
+        );
+        provider.category = Some("aggregator".to_string());
+
+        db.save_provider("codex", &provider).expect("save provider");
+
+        let ids = collect_source_model_provider_ids(&db).expect("collect ids");
+        assert!(ids.contains("crs"));
         assert!(!ids.contains("generated-uuid"));
     }
 

@@ -15,6 +15,7 @@ pub const CC_SWITCH_CODEX_MODEL_PROVIDER_ID: &str = "custom";
 pub const CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME: &str =
     crate::identity::CODEX_MODEL_CATALOG_FILE_NAME;
 const CODEX_MODEL_CATALOG_TEMPLATE_SLUG: &str = "gpt-5.5";
+const CODEX_LEGACY_PROVIDER_ALIASES: &[(&str, &str)] = &[("crs", "custom")];
 
 /// Reserved built-in provider IDs from OpenAI Codex's config/model-provider
 /// catalog. Keep in sync with Codex `RESERVED_MODEL_PROVIDER_IDS` and legacy
@@ -164,6 +165,77 @@ fn active_codex_model_provider_id(doc: &DocumentMut) -> Option<String> {
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(str::to_string)
+}
+
+fn canonicalize_legacy_codex_provider_id(id: &str) -> Option<&'static str> {
+    CODEX_LEGACY_PROVIDER_ALIASES
+        .iter()
+        .find(|(legacy, _)| legacy.eq_ignore_ascii_case(id))
+        .map(|(_, current)| *current)
+}
+
+fn rewrite_legacy_codex_provider_aliases(config_text: &str) -> Result<String, AppError> {
+    if !CODEX_LEGACY_PROVIDER_ALIASES
+        .iter()
+        .any(|(legacy, _)| config_text.contains(legacy))
+    {
+        return Ok(config_text.to_string());
+    }
+
+    let mut doc = config_text
+        .parse::<DocumentMut>()
+        .map_err(|e| AppError::Message(format!("Invalid Codex config.toml: {e}")))?;
+    let mut changed = false;
+
+    if let Some(current) = doc
+        .get("model_provider")
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .and_then(canonicalize_legacy_codex_provider_id)
+    {
+        doc["model_provider"] = toml_edit::value(current);
+        changed = true;
+    }
+
+    if let Some(profiles) = doc.get_mut("profiles").and_then(|item| item.as_table_like_mut()) {
+        for (_, profile_item) in profiles.iter_mut() {
+            let Some(profile_table) = profile_item.as_table_like_mut() else {
+                continue;
+            };
+            let Some(current) = profile_table
+                .get("model_provider")
+                .and_then(|item| item.as_str())
+                .map(str::trim)
+                .and_then(canonicalize_legacy_codex_provider_id)
+            else {
+                continue;
+            };
+            profile_table["model_provider"] = toml_edit::value(current);
+            changed = true;
+        }
+    }
+
+    if let Some(model_providers) = doc
+        .get_mut("model_providers")
+        .and_then(|item| item.as_table_mut())
+    {
+        for (legacy, current) in CODEX_LEGACY_PROVIDER_ALIASES {
+            if model_providers.contains_key(*current) {
+                continue;
+            }
+            let Some(provider_table) = model_providers.remove(*legacy) else {
+                continue;
+            };
+            model_providers[*current] = provider_table;
+            changed = true;
+        }
+    }
+
+    if changed {
+      Ok(doc.to_string())
+    } else {
+      Ok(config_text.to_string())
+    }
 }
 
 pub(crate) fn is_custom_codex_model_provider_id(id: &str) -> bool {
@@ -1076,12 +1148,13 @@ pub fn prepare_codex_provider_live_config(
     auth: &Value,
     config_text: &str,
 ) -> Result<String, AppError> {
+    let config_text = rewrite_legacy_codex_provider_aliases(config_text)?;
     let token = extract_codex_auth_api_key(auth)
-        .or_else(|| extract_codex_experimental_bearer_token(config_text));
+        .or_else(|| extract_codex_experimental_bearer_token(&config_text));
 
     Ok(match token {
-        Some(token) => set_codex_experimental_bearer_token(config_text, &token)?,
-        None => config_text.to_string(),
+        Some(token) => set_codex_experimental_bearer_token(&config_text, &token)?,
+        None => config_text,
     })
 }
 
@@ -1492,6 +1565,53 @@ wire_api = "responses"
                 .and_then(|v| v.get("vendor_beta"))
                 .is_some(),
             "backfill should not rewrite user-selected provider tables"
+        );
+    }
+
+    #[test]
+    fn prepare_live_config_rewrites_crs_legacy_provider_id_to_custom() {
+        let input = r#"model_provider = "crs"
+model = "gpt-4.1"
+
+[model_providers.crs]
+name = "Legacy CRS"
+base_url = "https://relay.example/v1"
+wire_api = "responses"
+
+[profiles.default]
+model_provider = "crs"
+"#;
+
+        let result =
+            prepare_codex_provider_live_config(&json!({"OPENAI_API_KEY": "sk-test"}), input)
+                .unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+
+        assert_eq!(
+            parsed.get("model_provider").and_then(|v| v.as_str()),
+            Some("custom")
+        );
+        assert_eq!(
+            parsed
+                .get("profiles")
+                .and_then(|v| v.get("default"))
+                .and_then(|v| v.get("model_provider"))
+                .and_then(|v| v.as_str()),
+            Some("custom")
+        );
+        assert!(
+            parsed
+                .get("model_providers")
+                .and_then(|v| v.get("custom"))
+                .is_some(),
+            "legacy provider table should be moved to custom"
+        );
+        assert!(
+            parsed
+                .get("model_providers")
+                .and_then(|v| v.get("crs"))
+                .is_none(),
+            "legacy provider table should not remain under crs"
         );
     }
 

@@ -20,6 +20,7 @@ import type { AppId } from "@/lib/api";
 interface ProviderActionsProps {
   appId?: AppId;
   isCurrent: boolean;
+  isActuallyActive?: boolean;
   isInConfig?: boolean;
   isTesting?: boolean;
   isProxyTakeover?: boolean;
@@ -59,6 +60,7 @@ interface MainButtonState {
 export function ProviderActions({
   appId,
   isCurrent,
+  isActuallyActive = false,
   isInConfig = false,
   isTesting,
   isProxyTakeover = false,
@@ -185,12 +187,27 @@ export function ProviderActions({
       };
     }
 
+    if (isCurrent && !isActuallyActive) {
+      return {
+        disabled: false,
+        variant: "default" as const,
+        className: isProxyTakeover
+          ? "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+          : "",
+        icon: <Play className="h-4 w-4" />,
+        text: t("provider.enable"),
+      };
+    }
+
     if (isCurrent) {
       return {
-        disabled: true,
+        disabled: false,
         variant: "secondary" as const,
-        className:
+        className: cn(
           "bg-gray-200 text-muted-foreground hover:bg-gray-200 hover:text-muted-foreground dark:bg-gray-700 dark:hover:bg-gray-700",
+          isActuallyActive &&
+            "relative overflow-hidden before:absolute before:inset-0 before:bg-emerald-400/20 before:animate-pulse",
+        ),
         icon: <Check className="h-4 w-4" />,
         text: t("provider.inUse"),
       };
@@ -275,8 +292,10 @@ export function ProviderActions({
           disabled={buttonState.disabled}
           className={cn("w-[4.5rem] px-2.5", buttonState.className)}
         >
-          {buttonState.icon}
-          {buttonState.text}
+          <span className="relative z-10 inline-flex items-center gap-1">
+            {buttonState.icon}
+            {buttonState.text}
+          </span>
         </Button>
       </span>
 

@@ -106,6 +106,16 @@ function createProvider(overrides: Partial<Provider> = {}): Provider {
   };
 }
 
+function createProxyControls() {
+  return {
+    startProxyServer: vi.fn().mockResolvedValue(undefined),
+    setTakeoverForApp: vi.fn().mockResolvedValue(undefined),
+    takeoverStatus: {
+      codex: false,
+    },
+  };
+}
+
 beforeEach(() => {
   addProviderMutateAsync.mockReset();
   updateProviderMutateAsync.mockReset();
@@ -220,9 +230,10 @@ describe("useProviderActions", () => {
     expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
   });
 
-  it("warns but still switches Codex full URL providers when proxy is not running", async () => {
+  it("auto-starts proxy and enables Codex takeover before switching full URL providers", async () => {
     switchProviderMutateAsync.mockResolvedValueOnce(undefined);
     const { wrapper } = createWrapper();
+    const proxyControls = createProxyControls();
     const provider = createProvider({
       category: "custom",
       meta: {
@@ -230,15 +241,51 @@ describe("useProviderActions", () => {
       },
     });
 
-    const { result } = renderHook(() => useProviderActions("codex", false), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useProviderActions("codex", false, false, proxyControls),
+      {
+        wrapper,
+      },
+    );
 
     await act(async () => {
       await result.current.switchProvider(provider);
     });
 
-    expect(toastWarningMock).toHaveBeenCalledTimes(1);
+    expect(proxyControls.startProxyServer).toHaveBeenCalledTimes(1);
+    expect(proxyControls.setTakeoverForApp).toHaveBeenCalledWith({
+      appType: "codex",
+      enabled: true,
+    });
+    expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
+    expect(toastWarningMock).not.toHaveBeenCalled();
+  });
+
+  it("does not re-enable Codex takeover when it is already active", async () => {
+    switchProviderMutateAsync.mockResolvedValueOnce(undefined);
+    const { wrapper } = createWrapper();
+    const proxyControls = createProxyControls();
+    proxyControls.takeoverStatus.codex = true;
+    const provider = createProvider({
+      category: "custom",
+      meta: {
+        isFullUrl: true,
+      },
+    });
+
+    const { result } = renderHook(
+      () => useProviderActions("codex", true, true, proxyControls),
+      {
+        wrapper,
+      },
+    );
+
+    await act(async () => {
+      await result.current.switchProvider(provider);
+    });
+
+    expect(proxyControls.startProxyServer).not.toHaveBeenCalled();
+    expect(proxyControls.setTakeoverForApp).not.toHaveBeenCalled();
     expect(switchProviderMutateAsync).toHaveBeenCalledWith(provider.id);
   });
 

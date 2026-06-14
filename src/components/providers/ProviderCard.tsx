@@ -541,6 +541,7 @@ export function ProviderCard({
             <ProviderActions
               appId={appId}
               isCurrent={isCurrent}
+              isActuallyActive={isActiveProvider}
               isInConfig={isInConfig}
               isTesting={isTesting}
               isProxyTakeover={isProxyTakeover}

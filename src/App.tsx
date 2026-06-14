@@ -255,6 +255,8 @@ function App() {
     isRunning: isProxyRunning,
     takeoverStatus,
     status: proxyStatus,
+    startProxyServer,
+    setTakeoverForApp,
   } = useProxyStatus();
   const isCurrentAppTakeoverActive = takeoverStatus?.[activeApp] || false;
   const activeProviderId = useMemo(() => {
@@ -299,6 +301,11 @@ function App() {
     activeApp,
     isProxyRunning,
     isProxyRunning && isCurrentAppTakeoverActive,
+    {
+      startProxyServer,
+      setTakeoverForApp,
+      takeoverStatus,
+    },
   );
 
   const disableOmoMutation = useDisableCurrentOmo();

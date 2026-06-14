@@ -32,6 +32,16 @@ export function useProviderActions(
   activeApp: AppId,
   isProxyRunning?: boolean,
   isProxyTakeover?: boolean,
+  proxyControls?: {
+    startProxyServer?: () => Promise<unknown>;
+    setTakeoverForApp?: (args: {
+      appType: string;
+      enabled: boolean;
+    }) => Promise<unknown>;
+    takeoverStatus?: {
+      codex?: boolean;
+    };
+  },
 ) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -208,13 +218,42 @@ export function useProviderActions(
       }
 
       if (proxyRequiredReason) {
-        toast.warning(
-          t("notifications.proxyRequiredForSwitch", {
-            reason: proxyRequiredReason,
-            defaultValue:
-              "此供应商{{reason}}，需要代理服务才能正常使用，请先启动代理",
-          }),
-        );
+        if (
+          activeApp === "codex" &&
+          proxyControls?.startProxyServer &&
+          proxyControls?.setTakeoverForApp
+        ) {
+          try {
+            if (!isProxyRunning) {
+              await proxyControls.startProxyServer();
+            }
+            if (!proxyControls.takeoverStatus?.codex) {
+              await proxyControls.setTakeoverForApp({
+                appType: "codex",
+                enabled: true,
+              });
+            }
+          } catch (error) {
+            const detail =
+              extractErrorMessage(error) ||
+              t("common.unknown", { defaultValue: "未知错误" });
+            toast.error(
+              t("proxy.takeover.failed", {
+                detail,
+                defaultValue: `操作失败: ${detail}`,
+              }),
+            );
+            return;
+          }
+        } else {
+          toast.warning(
+            t("notifications.proxyRequiredForSwitch", {
+              reason: proxyRequiredReason,
+              defaultValue:
+                "此供应商{{reason}}，需要代理服务才能正常使用，请先启动代理",
+            }),
+          );
+        }
       }
 
       // Block official providers when proxy takeover is active
@@ -278,6 +317,7 @@ export function useProviderActions(
       activeApp,
       isProxyRunning,
       isProxyTakeover,
+      proxyControls,
       t,
     ],
   );
