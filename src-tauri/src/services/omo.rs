@@ -292,7 +292,6 @@ impl OmoService {
         state
             .db
             .set_omo_provider_current("opencode", &provider.id, v.category)?;
-        Self::write_config_to_file(state, v)?;
         Ok(provider)
     }
 

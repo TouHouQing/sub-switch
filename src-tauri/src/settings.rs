@@ -871,16 +871,24 @@ pub fn set_current_provider(app_type: &AppType, id: Option<&str>) -> Result<(), 
 /// 逻辑：
 /// 1. 从本地 settings 读取当前供应商 ID
 /// 2. 验证该 ID 在数据库中存在
-/// 3. 如果不存在则清理本地 settings，fallback 到数据库的 is_current
+/// 3. 如果不存在则只 fallback 到数据库的 is_current，不在读取路径修正 settings
 ///
 /// 这确保了返回的 ID 一定是有效的（在数据库中存在）。
-/// 多设备云同步场景下，配置导入后本地 ID 可能失效，此函数会自动修复。
+/// 多设备云同步场景下，配置导入后本地 ID 可能失效，此函数只做读取时 fallback。
 pub fn get_effective_current_provider(
     db: &crate::database::Database,
     app_type: &AppType,
 ) -> Result<Option<String>, AppError> {
+    resolve_effective_current_provider(db, app_type, get_current_provider(app_type))
+}
+
+fn resolve_effective_current_provider(
+    db: &crate::database::Database,
+    app_type: &AppType,
+    local_id: Option<String>,
+) -> Result<Option<String>, AppError> {
     // 1. 从本地 settings 读取
-    if let Some(local_id) = get_current_provider(app_type) {
+    if let Some(local_id) = local_id {
         // 2. 验证该 ID 在数据库中存在
         let providers = db.get_all_providers(app_type.as_str())?;
         if providers.contains_key(&local_id) {
@@ -888,13 +896,12 @@ pub fn get_effective_current_provider(
             return Ok(Some(local_id));
         }
 
-        // 3. 不存在，清理本地 settings
+        // 3. 不存在，直接 fallback 到数据库，不修正 settings
         log::warn!(
-            "本地 settings 中的供应商 {} ({}) 在数据库中不存在，将清理并 fallback 到数据库",
+            "本地 settings 中的供应商 {} ({}) 在数据库中不存在，将 fallback 到数据库",
             local_id,
             app_type.as_str()
         );
-        let _ = set_current_provider(app_type, None);
     }
 
     // Fallback 到数据库的 is_current
@@ -1022,6 +1029,7 @@ pub fn update_s3_sync_status(status: WebDavSyncStatus) -> Result<(), AppError> {
 mod tests {
     use super::*;
     use crate::app_config::AppType;
+    use crate::database::Database;
 
     #[test]
     fn visible_apps_old_settings_default_claude_desktop_visible() {
@@ -1052,5 +1060,27 @@ mod tests {
         .expect("visible apps");
 
         assert!(!visible.is_visible(&AppType::ClaudeDesktop));
+    }
+
+    #[test]
+    fn resolve_effective_current_provider_falls_back_without_mutating_local_state() {
+        let db = Database::memory().expect("memory db");
+        let provider = crate::provider::Provider::with_id(
+            "p1".to_string(),
+            "Provider 1".to_string(),
+            serde_json::json!({"base_url": "https://example.com"}),
+            None,
+        );
+        db.save_provider("codex", &provider).expect("save provider");
+        db.set_current_provider("codex", "p1")
+            .expect("set db current provider");
+
+        let resolved = resolve_effective_current_provider(
+            &db,
+            &AppType::Codex,
+            Some("missing".to_string()),
+        )
+        .expect("resolve current provider");
+        assert_eq!(resolved.as_deref(), Some("p1"));
     }
 }

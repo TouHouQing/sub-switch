@@ -95,6 +95,20 @@ pub struct CodexProviderTemplateBucketMigrationOutcome {
 pub fn maybe_migrate_codex_third_party_history_provider_bucket(
     db: &Database,
 ) -> Result<CodexHistoryProviderBucketMigrationOutcome, AppError> {
+    let _ = db;
+    // This migration rewrote real Codex session JSONL files and state_5.sqlite
+    // during app startup. That is too invasive for a provider switcher: opening
+    // THQ Switch must not mutate the user's Codex chat history or state.
+    Ok(CodexHistoryProviderBucketMigrationOutcome {
+        skipped_reason: Some("disabled_for_user_data_safety".to_string()),
+        ..Default::default()
+    })
+}
+
+#[allow(dead_code)]
+fn migrate_codex_third_party_history_provider_bucket_for_manual_repair(
+    db: &Database,
+) -> Result<CodexHistoryProviderBucketMigrationOutcome, AppError> {
     if crate::settings::is_codex_third_party_history_provider_bucket_migrated() {
         return Ok(CodexHistoryProviderBucketMigrationOutcome {
             skipped_reason: Some("already_migrated".to_string()),
@@ -814,6 +828,7 @@ fn relative_backup_path(path: &Path, root: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use crate::provider::Provider;
+    use serial_test::serial;
     use tempfile::tempdir;
 
     fn source_ids(values: &[&str]) -> BTreeSet<String> {
@@ -1090,6 +1105,87 @@ base_url = "https://proxy.example/v1"
                 .and_then(|value| value.as_str()),
             Some("custom")
         );
+    }
+
+    #[test]
+    #[serial]
+    fn startup_history_bucket_migration_is_disabled_and_does_not_touch_codex_history() {
+        let dir = tempdir().expect("tempdir");
+        let old_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        std::env::set_var("CC_SWITCH_TEST_HOME", dir.path());
+
+        let result = (|| {
+            let codex_dir = dir.path().join(".codex");
+            fs::create_dir_all(codex_dir.join("sessions/2026/05/20"))
+                .expect("create session dir");
+
+            let db = Database::memory().expect("memory db");
+            let provider = Provider::with_id(
+                "rightcode".to_string(),
+                "RightCode".to_string(),
+                serde_json::json!({
+                    "auth": {},
+                    "config": r#"model_provider = "rightcode"
+
+[model_providers.rightcode]
+name = "RightCode"
+base_url = "https://rightcode.example/v1"
+"#
+                }),
+                None,
+            );
+            db.save_provider("codex", &provider).expect("save provider");
+
+            let session_path = codex_dir.join("sessions/2026/05/20/session.jsonl");
+            let original_session = concat!(
+                "{\"type\":\"session_meta\",\"payload\":{\"id\":\"s1\",\"model_provider\":\"rightcode\"}}\n",
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}}\n"
+            );
+            fs::write(&session_path, original_session).expect("write session");
+
+            let state_db_path = codex_dir.join(CODEX_STATE_DB_FILENAME);
+            let conn = Connection::open(&state_db_path).expect("open state db");
+            conn.execute_batch(
+                "CREATE TABLE threads (
+                    id TEXT PRIMARY KEY,
+                    model_provider TEXT NOT NULL
+                );
+                INSERT INTO threads (id, model_provider) VALUES
+                    ('rightcode-thread', 'rightcode'),
+                    ('custom-thread', 'custom');",
+            )
+            .expect("seed state db");
+            drop(conn);
+
+            let outcome =
+                maybe_migrate_codex_third_party_history_provider_bucket(&db).expect("migrate");
+            assert_eq!(
+                outcome.skipped_reason.as_deref(),
+                Some("disabled_for_user_data_safety")
+            );
+            assert_eq!(outcome.migrated_jsonl_files, 0);
+            assert_eq!(outcome.migrated_state_rows, 0);
+
+            let next_session = fs::read_to_string(&session_path).expect("read session");
+            assert_eq!(next_session, original_session);
+
+            let conn = Connection::open(&state_db_path).expect("reopen state db");
+            let rightcode_count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM threads WHERE model_provider = 'rightcode'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("count rightcode");
+            assert_eq!(rightcode_count, 1);
+        })();
+
+        match old_test_home {
+            Some(value) => std::env::set_var("CC_SWITCH_TEST_HOME", value),
+            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+        }
+
+        result
     }
 
     #[test]

@@ -524,7 +524,7 @@ impl ProxyService {
             };
 
         // 3. 在写入接管配置之前先落盘接管标志：
-        //    这样即使在接管过程中断电/kill，下次启动也能检测到并自动恢复。
+        //    这样即使在接管过程中断电/kill，下次启动也能检测到残留并提醒用户手动恢复。
         if let Err(e) = self.db.set_live_takeover_active(true).await {
             if let Err(clean_err) = self.db.delete_all_live_backups().await {
                 log::warn!("清理 Live 备份失败: {clean_err}");
@@ -537,7 +537,7 @@ impl ProxyService {
 
         // 4. 接管各应用的 Live 配置（写入代理地址，清空 Token）
         if let Err(e) = self.takeover_live_configs().await {
-            // 接管失败（可能是部分写入），尝试恢复原始配置；若恢复失败则保留标志与备份，等待下次启动自动恢复。
+            // 接管失败（可能是部分写入），尝试恢复原始配置；若恢复失败则保留标志与备份，等待用户手动恢复。
             log::error!("接管 Live 配置失败，尝试恢复原始配置: {e}");
             match self.restore_live_configs().await {
                 Ok(()) => {
@@ -545,7 +545,7 @@ impl ProxyService {
                     let _ = self.db.delete_all_live_backups().await;
                 }
                 Err(restore_err) => {
-                    log::error!("恢复原始配置失败，将保留备份以便下次启动恢复: {restore_err}");
+                    log::error!("恢复原始配置失败，将保留备份以便用户手动恢复: {restore_err}");
                 }
             }
             if started_proxy_before_takeover {
@@ -566,7 +566,7 @@ impl ProxyService {
                         let _ = self.db.delete_all_live_backups().await;
                     }
                     Err(restore_err) => {
-                        log::error!("恢复原始配置失败，将保留备份以便下次启动恢复: {restore_err}");
+                        log::error!("恢复原始配置失败，将保留备份以便用户手动恢复: {restore_err}");
                     }
                 }
                 if started_proxy_before_takeover {
@@ -687,7 +687,7 @@ impl ProxyService {
                     }
                     Err(restore_err) => {
                         log::error!(
-                            "{app_type_str} 恢复 Live 配置失败，将保留备份以便下次启动恢复: {restore_err}"
+                            "{app_type_str} 恢复 Live 配置失败，将保留备份以便用户手动恢复: {restore_err}"
                         );
                     }
                 }
@@ -1121,7 +1121,7 @@ impl ProxyService {
 
     /// 停止代理服务器（恢复 Live 配置，但保留 settings 表中的代理状态）
     ///
-    /// 用于程序正常退出时，保留代理状态以便下次启动时自动恢复
+    /// 这是旧的恢复辅助函数。启动/退出路径不再调用它，避免默认流程写外部 CLI 配置。
     pub async fn stop_with_restore_keep_state(&self) -> Result<(), String> {
         // 1. 停止代理服务器（即使未运行也继续执行恢复逻辑）
         if let Err(e) = self.stop().await {
@@ -1132,7 +1132,7 @@ impl ProxyService {
         self.restore_live_configs().await?;
 
         // 3. 更新 proxy_config 表中的 live_takeover_active 标志（兼容旧版）
-        //    注意：保留 proxy_config.enabled 状态，下次启动时自动恢复
+        //    注意：保留 proxy_config.enabled 状态，供前端展示/手动处理。
         if let Ok(mut config) = self.db.get_proxy_config().await {
             config.live_takeover_active = false;
             let _ = self.db.update_proxy_config(config).await;
@@ -1150,7 +1150,7 @@ impl ProxyService {
             .await
             .map_err(|e| format!("重置健康状态失败: {e}"))?;
 
-        log::info!("代理已停止，Live 配置已恢复（保留代理状态，下次启动将自动恢复）");
+        log::info!("代理已停止，Live 配置已恢复（保留代理状态）");
         Ok(())
     }
 
@@ -1872,7 +1872,7 @@ impl ProxyService {
         Ok(status.claude || status.codex || status.gemini)
     }
 
-    /// 从异常退出中恢复（启动时调用）
+    /// 从异常退出中恢复（手动恢复路径调用）
     ///
     /// 检测到 Live 备份残留时调用此方法。
     /// 会恢复 Live 配置、清除接管标志、删除备份。
@@ -1899,7 +1899,7 @@ impl ProxyService {
     /// 检测 Live 配置是否处于"被接管"的残留状态
     ///
     /// 用于兜底处理：当数据库备份缺失但 Live 文件已经写成代理占位符时，
-    /// 启动流程可以据此触发恢复逻辑。
+    /// 启动流程只记录残留并提醒用户手动恢复。
     pub fn detect_takeover_in_live_configs(&self) -> bool {
         if let Ok(config) = self.read_claude_live() {
             if Self::is_claude_live_taken_over(&config) {

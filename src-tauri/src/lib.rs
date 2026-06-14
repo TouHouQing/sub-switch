@@ -482,6 +482,12 @@ pub fn run() {
                         let _ = app_state
                             .db
                             .set_setting("skills_ssot_migration_pending", "false");
+                    } else if crate::settings::get_skill_storage_location()
+                        == crate::services::skill::SkillStorageLocation::Unified
+                    {
+                        log::info!(
+                            "Detected skills_ssot_migration_pending but skill storage is ~/.agents/skills; skipping startup auto import to avoid writing external agent directories."
+                        );
                     } else {
                         match crate::services::skill::migrate_skills_to_ssot(&app_state.db) {
                             Ok(count) => {
@@ -965,7 +971,7 @@ pub fn run() {
                 }
             }
 
-            // 异常退出恢复 + 代理状态自动恢复
+            // 只检测异常退出/代理状态，不在启动时自动恢复或接管外部 live 配置。
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
@@ -982,17 +988,16 @@ pub fn run() {
                 let live_taken_over = state.proxy_service.detect_takeover_in_live_configs();
 
                 if has_backups || live_taken_over {
-                    log::warn!("检测到上次异常退出（存在接管残留），正在恢复 Live 配置...");
-                    if let Err(e) = state.proxy_service.recover_from_crash().await {
-                        log::error!("恢复 Live 配置失败: {e}");
-                    } else {
-                        log::info!("Live 配置已恢复");
-                    }
+                    log::warn!(
+                        "检测到代理接管残留，但启动时不自动恢复 Live 配置，避免打开应用即写入外部 CLI 配置。请在代理页面手动恢复。"
+                    );
                 }
 
                 initialize_common_config_snippets(&state);
 
-                // 检查 settings 表中的代理状态，自动恢复代理服务
+                // 保留代理状态供前端展示，但启动时不自动恢复接管。
+                // 自动恢复会重写 Claude/Codex/Gemini 的 live 配置；打开 THQ Switch
+                // 本身不应修改用户正在使用的 CLI 配置。
                 restore_proxy_state_on_startup(&state).await;
 
                 // Periodic backup check (on startup)
@@ -1549,14 +1554,14 @@ pub fn run() {
 
 /// 应用退出前的清理工作
 ///
-/// 在应用退出前检查代理服务器状态，如果正在运行则停止代理并恢复 Live 配置。
-/// 确保 Claude Code/Codex/Gemini 的配置不会处于损坏状态。
-/// 使用 stop_with_restore_keep_state 保留 settings 表中的代理状态，下次启动时自动恢复。
+/// 退出时只清理 THQ Switch 自己的代理进程和托盘状态。
+/// 不自动恢复 Claude Code/Codex/Gemini 的 Live 配置；恢复会写外部 CLI
+/// 配置，必须由用户在代理页面显式触发。
 pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<store::AppState>() {
         let proxy_service = &state.proxy_service;
 
-        // 退出时也需要兜底：代理可能已崩溃/未运行，但 Live 接管残留仍在（占位符/备份）。
+        // 退出时只检测接管残留，避免"打开后退出"也自动写外部 CLI 配置。
         let has_backups = match state.db.has_any_live_backup().await {
             Ok(v) => v,
             Err(e) => {
@@ -1568,17 +1573,12 @@ pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
         let needs_restore = has_backups || live_taken_over;
 
         if needs_restore {
-            log::info!("检测到接管残留，开始恢复 Live 配置（保留代理状态）...");
-            // 使用 keep_state 版本，保留 settings 表中的代理状态
-            if let Err(e) = proxy_service.stop_with_restore_keep_state().await {
-                log::error!("退出时恢复 Live 配置失败: {e}");
-            } else {
-                log::info!("已恢复 Live 配置（代理状态已保留，下次启动将自动恢复）");
-            }
-            return;
+            log::warn!(
+                "退出时检测到代理接管残留，但不会自动恢复 Live 配置，避免写入外部 CLI 配置。请在代理页面手动恢复。"
+            );
         }
 
-        // 非接管模式：代理在运行则仅停止代理
+        // 代理在运行则仅停止 THQ Switch 自己的代理进程。
         if proxy_service.is_running().await {
             log::info!("检测到代理服务器正在运行，开始停止...");
             if let Err(e) = proxy_service.stop().await {
@@ -1613,12 +1613,13 @@ pub(crate) fn remove_tray_icon_before_exit(app_handle: &tauri::AppHandle) {
 // 启动时恢复代理状态
 // ============================================================
 
-/// 启动时根据 proxy_config 表中的代理状态自动恢复代理服务
+/// 启动时检测 proxy_config 表中的历史代理状态。
 ///
-/// 检查 `proxy_config.enabled` 字段，如果有任一应用的状态为 `true`，
-/// 则自动启动代理服务并接管对应应用的 Live 配置。
+/// 检查 `proxy_config.enabled` 字段，但只记录日志，不自动启动代理或接管
+/// 对应应用的 Live 配置。
 async fn restore_proxy_state_on_startup(state: &store::AppState) {
-    // 收集需要恢复接管的应用列表（从 proxy_config.enabled 读取）
+    // 收集之前开启过接管的应用列表（从 proxy_config.enabled 读取）。
+    // 只记录，不自动调用 set_takeover_for_app；该调用会写 live config。
     let mut apps_to_restore = Vec::new();
     for app_type in ["claude", "codex", "gemini"] {
         if let Ok(config) = state.db.get_proxy_config_for_app(app_type).await {
@@ -1633,38 +1634,40 @@ async fn restore_proxy_state_on_startup(state: &store::AppState) {
         return;
     }
 
-    log::info!("检测到上次代理状态需要恢复，应用列表: {apps_to_restore:?}");
-
-    // 逐个恢复接管状态
-    for app_type in apps_to_restore {
-        match state
-            .proxy_service
-            .set_takeover_for_app(app_type, true)
-            .await
-        {
-            Ok(()) => {
-                log::info!("✓ 已恢复 {app_type} 的代理接管状态");
-            }
-            Err(e) => {
-                log::error!("✗ 恢复 {app_type} 的代理接管状态失败: {e}");
-                // 失败时清除该应用的状态，避免下次启动再次尝试
-                if let Err(clear_err) = state
-                    .proxy_service
-                    .set_takeover_for_app(app_type, false)
-                    .await
-                {
-                    log::error!("清除 {app_type} 代理状态失败: {clear_err}");
-                }
-            }
-        }
-    }
+    log::info!(
+        "检测到上次代理接管状态，但启动时不自动写回 live 配置，应用列表: {apps_to_restore:?}"
+    );
 }
 
 fn initialize_common_config_snippets(state: &store::AppState) {
     // Auto-extract common config snippets from clean live files when snippet is missing.
-    // This must run before proxy takeover is restored on startup, otherwise we'd read
-    // proxy-placeholder configs instead of the user's actual live settings.
+    // Skip placeholder configs when proxy takeover residue is detected so startup does
+    // not learn local proxy placeholders as reusable common settings.
     for app_type in crate::app_config::AppType::all() {
+        if state
+            .proxy_service
+            .detect_takeover_in_live_config_for_app(&app_type)
+        {
+            log::info!(
+                "Skipping common config snippet auto-extract for {} because live config is currently taken over.",
+                app_type.as_str()
+            );
+            continue;
+        }
+
+        let has_live_backup =
+            futures::executor::block_on(state.db.get_live_backup(app_type.as_str()))
+                .ok()
+                .flatten()
+                .is_some();
+        if has_live_backup {
+            log::info!(
+                "Skipping common config snippet auto-extract for {} because a live backup exists.",
+                app_type.as_str()
+            );
+            continue;
+        }
+
         if !state
             .db
             .should_auto_extract_config_snippet(app_type.as_str())
