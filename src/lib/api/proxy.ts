@@ -16,6 +16,10 @@ export const proxyApi = {
     return invoke("start_proxy_server");
   },
 
+  async stopProxyServer(): Promise<void> {
+    return invoke("stop_proxy_server");
+  },
+
   // 停止代理服务器并恢复配置
   async stopProxyWithRestore(): Promise<void> {
     return invoke("stop_proxy_with_restore");
@@ -57,6 +61,17 @@ export const proxyApi = {
     enabled: boolean,
   ): Promise<void> {
     return invoke("set_proxy_takeover_for_app", { appType, enabled });
+  },
+
+  async enableThqRouteForApp(
+    appType: string,
+    providerId: string,
+  ): Promise<void> {
+    return invoke("enable_thq_route_for_app", { appType, providerId });
+  },
+
+  async disableThqRouteForApp(appType: string): Promise<void> {
+    return invoke("disable_thq_route_for_app", { appType });
   },
 
   // ========== Legacy 代理配置 API (兼容) ==========

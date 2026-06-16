@@ -876,7 +876,6 @@ function App() {
               activeApp={activeApp}
               visibleApps={visibleApps}
               onSwitchApp={setActiveApp}
-              onOpenAdvancedProviders={() => setCurrentView("providers")}
             />
           );
         case "settings":
@@ -926,9 +925,7 @@ function App() {
             />
           );
         case "agents":
-          return (
-            <AgentsPanel onOpenChange={() => setCurrentView("gateway")} />
-          );
+          return <AgentsPanel onOpenChange={() => setCurrentView("gateway")} />;
         case "universal":
           return (
             <div className="px-6 pt-4">
@@ -1145,9 +1142,7 @@ function App() {
                   size="icon"
                   onClick={() =>
                     setCurrentView(
-                      currentView === "skillsDiscovery"
-                        ? "skills"
-                        : "gateway",
+                      currentView === "skillsDiscovery" ? "skills" : "gateway",
                     )
                   }
                   className="mr-2 rounded-lg"

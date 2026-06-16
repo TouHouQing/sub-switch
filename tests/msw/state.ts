@@ -15,6 +15,14 @@ type LiveProviderIdsByApp = Record<
   "opencode" | "openclaw" | "hermes",
   string[]
 >;
+type ProxyTakeoverState = {
+  claude: boolean;
+  codex: boolean;
+  gemini: boolean;
+  opencode: boolean;
+  openclaw: boolean;
+  hermes: boolean;
+};
 
 const createDefaultProviders = (): ProvidersByApp => ({
   claude: {
@@ -91,10 +99,21 @@ let liveProviderIds: LiveProviderIdsByApp = {
   openclaw: [],
   hermes: [],
 };
+let proxyTakeoverState: ProxyTakeoverState = {
+  claude: false,
+  codex: false,
+  gemini: false,
+  opencode: false,
+  openclaw: false,
+  hermes: false,
+};
+let proxyRunning = false;
+let claudeDesktopConfigured = false;
 let settingsState: Settings = {
   showInTray: true,
   minimizeToTrayOnClose: true,
   enableClaudePluginIntegration: false,
+  firstRunNoticeConfirmed: true,
   claudeConfigDir: "/default/claude",
   codexConfigDir: "/default/codex",
   language: "zh",
@@ -207,12 +226,23 @@ export const resetProviderState = () => {
     openclaw: [],
     hermes: [],
   };
+  proxyTakeoverState = {
+    claude: false,
+    codex: false,
+    gemini: false,
+    opencode: false,
+    openclaw: false,
+    hermes: false,
+  };
+  proxyRunning = false;
+  claudeDesktopConfigured = false;
   sessionsState = createDefaultSessions();
   sessionMessagesState = createDefaultSessionMessages();
   settingsState = {
     showInTray: true,
     minimizeToTrayOnClose: true,
     enableClaudePluginIntegration: false,
+    firstRunNoticeConfirmed: true,
     claudeConfigDir: "/default/claude",
     codexConfigDir: "/default/codex",
     language: "zh",
@@ -279,6 +309,45 @@ export const setLiveProviderIds = (
   ids: string[],
 ) => {
   liveProviderIds[appType] = [...ids];
+};
+
+export const getProxyTakeoverState = () => ({ ...proxyTakeoverState });
+
+export const setProxyTakeoverForApp = (
+  appType: keyof ProxyTakeoverState,
+  enabled: boolean,
+) => {
+  proxyTakeoverState[appType] = enabled;
+  proxyRunning = Object.values(proxyTakeoverState).some(Boolean);
+};
+
+export const isProxyRunningState = () => proxyRunning;
+
+export const setProxyRunningState = (running: boolean) => {
+  proxyRunning = running;
+};
+
+export const getClaudeDesktopStatusState = () => ({
+  supported: true,
+  configured: claudeDesktopConfigured,
+  appliedId: claudeDesktopConfigured ? "cc-switch" : null,
+  profilePath: "/mock/claude-desktop/profile.json",
+  configLibraryPath: "/mock/claude-desktop",
+  mode: claudeDesktopConfigured ? "proxy" : null,
+  expectedBaseUrl: claudeDesktopConfigured
+    ? "http://127.0.0.1:15721/claude-desktop"
+    : null,
+  actualBaseUrl: claudeDesktopConfigured
+    ? "http://127.0.0.1:15721/claude-desktop"
+    : null,
+  proxyRunning,
+  staleRawModels: false,
+  missingRouteMappings: false,
+  gatewayTokenConfigured: claudeDesktopConfigured,
+});
+
+export const setClaudeDesktopConfiguredState = (configured: boolean) => {
+  claudeDesktopConfigured = configured;
 };
 
 export const setCurrentProviderId = (appType: AppId, providerId: string) => {

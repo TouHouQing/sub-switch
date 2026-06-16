@@ -1116,7 +1116,7 @@ base_url = "http://localhost:8080"
 }
 
 impl ProviderService {
-    fn normalize_provider_if_claude(app_type: &AppType, provider: &mut Provider) {
+    pub(crate) fn normalize_provider_if_claude(app_type: &AppType, provider: &mut Provider) {
         if matches!(app_type, AppType::Claude) {
             let mut v = provider.settings_config.clone();
             if normalize_claude_models_in_value(&mut v) {
@@ -2261,7 +2261,10 @@ impl ProviderService {
         write_gemini_live(provider)
     }
 
-    fn validate_provider_settings(app_type: &AppType, provider: &Provider) -> Result<(), AppError> {
+    pub(crate) fn validate_provider_settings(
+        app_type: &AppType,
+        provider: &Provider,
+    ) -> Result<(), AppError> {
         match app_type {
             AppType::Claude => {
                 if !provider.settings_config.is_object() {

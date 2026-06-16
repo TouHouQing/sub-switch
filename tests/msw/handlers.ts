@@ -23,6 +23,12 @@ import {
   setMcpServerEnabled,
   upsertMcpServer,
   deleteMcpServer,
+  getProxyTakeoverState,
+  getClaudeDesktopStatusState,
+  isProxyRunningState,
+  setProxyTakeoverForApp,
+  setProxyRunningState,
+  setClaudeDesktopConfiguredState,
 } from "./state";
 
 const TAURI_ENDPOINT = "http://tauri.local";
@@ -89,6 +95,9 @@ export const handlers = [
       return HttpResponse.json(false, { status: 404 });
     }
     setCurrentProviderId(app, id);
+    if (app === "claude-desktop") {
+      setClaudeDesktopConfiguredState(id !== "claude-desktop-official");
+    }
     return success(true);
   }),
 
@@ -109,6 +118,19 @@ export const handlers = [
       app: AppId;
     }>(request);
     updateProvider(app, provider);
+    return success(true);
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/upsert_thq_provider`, async ({ request }) => {
+    const { provider, app } = await withJson<{
+      provider: Provider;
+      app: AppId;
+    }>(request);
+    if (listProviders(app)[provider.id]) {
+      updateProvider(app, provider);
+    } else {
+      addProvider(app, provider);
+    }
     return success(true);
   }),
 
@@ -311,12 +333,128 @@ export const handlers = [
     success({ success: true }),
   ),
 
+  http.post(`${TAURI_ENDPOINT}/gateway_http_request`, async ({ request }) => {
+    const { url, method = "GET" } = await withJson<{
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    }>(request);
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+
+    if (path.endsWith("/user/profile")) {
+      return success({
+        status: 200,
+        body: {
+          data: {
+            id: "user-1",
+            email: "user@example.com",
+            balance: 88.8,
+          },
+        },
+      });
+    }
+
+    if (path.endsWith("/usage/dashboard/stats")) {
+      return success({
+        status: 200,
+        body: {
+          data: {
+            balance: 88.8,
+            today_usage: 12.5,
+            today_tokens: 3456,
+            total_usage: 98.7,
+            today_requests: 9,
+            total_requests: 88,
+          },
+        },
+      });
+    }
+
+    if (path.endsWith("/keys")) {
+      return success({
+        status: 200,
+        body:
+          method.toUpperCase() === "POST"
+            ? {
+                data: [
+                  {
+                    id: "key-1",
+                    name: "Desktop Client",
+                    secret: "sk-thq-test",
+                    prefix: "sk-thq",
+                  },
+                ],
+              }
+            : {
+                data: [
+                  {
+                    id: "key-1",
+                    name: "Desktop Client",
+                    secret: "sk-thq-test",
+                    prefix: "sk-thq",
+                  },
+                ],
+              },
+      });
+    }
+
+    if (path.endsWith("/groups/available")) {
+      return success({
+        status: 200,
+        body: {
+          data: [{ id: "group-1", name: "默认分组", platform: "all" }],
+        },
+      });
+    }
+
+    if (path.endsWith("/channels/available")) {
+      return success({
+        status: 200,
+        body: {
+          data: [
+            { id: "gpt-5.5", name: "GPT-5.5", enabled: true },
+            {
+              id: "claude-sonnet-4-20250514",
+              name: "Claude Sonnet",
+              enabled: true,
+            },
+          ],
+        },
+      });
+    }
+
+    if (path.endsWith("/usage")) {
+      return success({ status: 200, body: { data: [] } });
+    }
+
+    if (path.endsWith("/payment/orders/my")) {
+      return success({ status: 200, body: { data: [] } });
+    }
+
+    if (path.endsWith("/payment/checkout-info")) {
+      return success({
+        status: 200,
+        body: {
+          data: [{ id: "alipay", name: "支付宝", enabled: true }],
+        },
+      });
+    }
+
+    if (path.endsWith("/payment/plans") || path.endsWith("/payment/channels")) {
+      return success({ status: 200, body: { data: [] } });
+    }
+
+    return success({ status: 200, body: { data: {} } });
+  }),
+
   // Proxy status (for SettingsPage / ProxyPanel hooks)
   http.post(`${TAURI_ENDPOINT}/get_proxy_status`, () =>
     success({
-      running: false,
+      running: isProxyRunningState(),
       address: "127.0.0.1",
-      port: 0,
+      port: isProxyRunningState() ? 15721 : 0,
       active_connections: 0,
       total_requests: 0,
       success_requests: 0,
@@ -333,14 +471,117 @@ export const handlers = [
   ),
 
   http.post(`${TAURI_ENDPOINT}/get_proxy_takeover_status`, () =>
-    success({
-      claude: false,
-      codex: false,
-      gemini: false,
-    }),
+    success(getProxyTakeoverState()),
   ),
 
-  http.post(`${TAURI_ENDPOINT}/is_live_takeover_active`, () => success(false)),
+  http.post(`${TAURI_ENDPOINT}/get_claude_desktop_status`, () =>
+    success(getClaudeDesktopStatusState()),
+  ),
+
+  http.post(`${TAURI_ENDPOINT}/start_proxy_server`, () => {
+    setProxyRunningState(true);
+    return success({
+      address: "127.0.0.1",
+      port: 15721,
+      started_at: new Date().toISOString(),
+    });
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/stop_proxy_server`, () => {
+    setProxyRunningState(false);
+    return success(true);
+  }),
+
+  http.post(`${TAURI_ENDPOINT}/stop_proxy_with_restore`, () => {
+    for (const app of [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "openclaw",
+      "hermes",
+    ] as const) {
+      setProxyTakeoverForApp(app, false);
+    }
+    setProxyRunningState(false);
+    return success(true);
+  }),
+
+  http.post(
+    `${TAURI_ENDPOINT}/set_proxy_takeover_for_app`,
+    async ({ request }) => {
+      const {
+        appType,
+        app_type,
+        enabled = false,
+      } = await withJson<{
+        appType?: string;
+        app_type?: string;
+        enabled?: boolean;
+      }>(request);
+      const app = (appType ?? app_type) as
+        | "claude"
+        | "codex"
+        | "gemini"
+        | "opencode"
+        | "openclaw"
+        | "hermes";
+      if (app) {
+        setProxyTakeoverForApp(app, enabled);
+      }
+      return success(true);
+    },
+  ),
+
+  http.post(
+    `${TAURI_ENDPOINT}/enable_thq_route_for_app`,
+    async ({ request }) => {
+      const { appType, app_type, providerId, provider_id } = await withJson<{
+        appType?: string;
+        app_type?: string;
+        providerId?: string;
+        provider_id?: string;
+      }>(request);
+      const app = (appType ?? app_type) as
+        | "claude"
+        | "codex"
+        | "gemini"
+        | "opencode"
+        | "openclaw"
+        | "hermes";
+      const target = providerId ?? provider_id;
+      if (app && target) {
+        setCurrentProviderId(app, target);
+        setProxyTakeoverForApp(app, true);
+      }
+      return success(true);
+    },
+  ),
+
+  http.post(
+    `${TAURI_ENDPOINT}/disable_thq_route_for_app`,
+    async ({ request }) => {
+      const { appType, app_type } = await withJson<{
+        appType?: string;
+        app_type?: string;
+      }>(request);
+      const app = (appType ?? app_type) as
+        | "claude"
+        | "codex"
+        | "gemini"
+        | "opencode"
+        | "openclaw"
+        | "hermes";
+      if (app) {
+        setProxyTakeoverForApp(app, false);
+      }
+      return success(true);
+    },
+  ),
+
+  http.post(`${TAURI_ENDPOINT}/is_live_takeover_active`, () =>
+    success(Object.values(getProxyTakeoverState()).some(Boolean)),
+  ),
 
   // Failover / circuit breaker defaults
   http.post(`${TAURI_ENDPOINT}/get_failover_queue`, () => success([])),

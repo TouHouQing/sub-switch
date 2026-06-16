@@ -9,7 +9,9 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { providersApi } from "@/lib/api/providers";
+import { GATEWAY_SESSION_STORAGE_KEY } from "@/lib/gateway/constants";
 import {
+  getCurrentProviderId,
   resetProviderState,
   setCurrentProviderId,
   setLiveProviderIds,
@@ -271,6 +273,57 @@ describe("App integration with MSW", () => {
 
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalled();
+    });
+  }, 15_000);
+
+  it("renders the THQ route console and toggles tool routing instead of provider switching", async () => {
+    localStorage.setItem("thq-gateway-last-view", "gateway");
+    localStorage.setItem(
+      GATEWAY_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        user: { id: "user-1", email: "user@example.com" },
+      }),
+    );
+
+    const { default: App } = await import("@/App");
+    renderApp(App);
+
+    await waitFor(() => {
+      expect(screen.getByText("THQ 路由控制台")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("Gemini")).toBeInTheDocument();
+    expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
+    expect(screen.queryByText("切换到 THQ")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "启用 Claude Code 路由" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Claude Code 路由已启用")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "暂停 Claude Code 路由" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("已暂停")).not.toHaveLength(0);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "启用 Claude Desktop 路由" }),
+    );
+
+    await waitFor(() => {
+      expect(getCurrentProviderId("claude-desktop")).toBe("thq-gateway");
+      expect(screen.getByText("Claude Desktop 路由已启用")).toBeInTheDocument();
     });
   }, 15_000);
 

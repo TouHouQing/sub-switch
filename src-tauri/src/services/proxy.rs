@@ -20,6 +20,7 @@ use tokio::sync::RwLock;
 
 /// 用于接管 Live 配置时的占位符（避免客户端提示缺少 key，同时不泄露真实 Token）
 const PROXY_TOKEN_PLACEHOLDER: &str = "PROXY_MANAGED";
+const THQ_ROUTE_PREVIOUS_PROVIDER_PREFIX: &str = "thq_route_previous_provider_";
 
 /// 代理接管模式下需要从 Claude Live 配置中移除的"模型覆盖"字段。
 ///
@@ -794,6 +795,242 @@ impl ProxyService {
         Ok(())
     }
 
+    fn thq_route_previous_provider_key(app_type: &str) -> String {
+        format!("{THQ_ROUTE_PREVIOUS_PROVIDER_PREFIX}{app_type}")
+    }
+
+    fn app_supports_thq_route(app: &AppType) -> bool {
+        matches!(app, AppType::Claude | AppType::Codex | AppType::Gemini)
+    }
+
+    fn remember_thq_route_previous_provider(
+        &self,
+        app: &AppType,
+        thq_provider_id: &str,
+    ) -> Result<(), String> {
+        let app_type = app.as_str();
+        let key = Self::thq_route_previous_provider_key(app_type);
+        if self
+            .db
+            .get_setting(&key)
+            .map_err(|e| format!("读取 {app_type} THQ 路由原供应商失败: {e}"))?
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        let current_id = crate::settings::get_effective_current_provider(&self.db, app)
+            .map_err(|e| format!("读取 {app_type} 当前供应商失败: {e}"))?;
+        if let Some(current_id) = current_id.filter(|id| id != thq_provider_id) {
+            self.db
+                .set_setting(&key, &current_id)
+                .map_err(|e| format!("保存 {app_type} THQ 路由原供应商失败: {e}"))?;
+        }
+
+        Ok(())
+    }
+
+    fn restore_thq_route_previous_provider(&self, app: &AppType) -> Result<(), String> {
+        let app_type = app.as_str();
+        let key = Self::thq_route_previous_provider_key(app_type);
+        let previous_id = self
+            .db
+            .get_setting(&key)
+            .map_err(|e| format!("读取 {app_type} THQ 路由原供应商失败: {e}"))?;
+
+        if let Some(previous_id) = previous_id {
+            let provider_exists = self
+                .db
+                .get_provider_by_id(&previous_id, app_type)
+                .map_err(|e| format!("读取 {app_type} 原供应商失败: {e}"))?
+                .is_some();
+            if provider_exists {
+                self.db
+                    .set_current_provider(app_type, &previous_id)
+                    .map_err(|e| format!("恢复 {app_type} 当前供应商失败: {e}"))?;
+                crate::settings::set_current_provider(app, Some(&previous_id))
+                    .map_err(|e| format!("恢复 {app_type} 本地当前供应商失败: {e}"))?;
+            } else {
+                log::warn!(
+                    "{app_type} THQ 路由原供应商 '{previous_id}' 已不存在，暂停时仅恢复 Live 配置"
+                );
+            }
+
+            self.db
+                .delete_setting(&key)
+                .map_err(|e| format!("清理 {app_type} THQ 路由原供应商记录失败: {e}"))?;
+        }
+
+        Ok(())
+    }
+
+    /// 为指定应用启用 THQ 路由。
+    ///
+    /// 与通用 provider switch 不同，此路径必须先保留用户原始 Live 配置作为恢复源，
+    /// 再把代理目标对齐到固定 THQ provider。不能调用 hot_switch_provider，因为它会
+    /// 将恢复备份更新成目标 provider 配置。
+    pub async fn enable_thq_route_for_app(
+        &self,
+        app_type: &str,
+        thq_provider_id: &str,
+    ) -> Result<(), String> {
+        let app = AppType::from_str(app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
+        if !Self::app_supports_thq_route(&app) {
+            return Err(format!("{app_type} 暂不支持 THQ 本地路由接管"));
+        }
+        let app_type_str = app.as_str();
+        let _guard = self.switch_locks.lock_for_app(app_type_str).await;
+
+        let thq_provider = self
+            .db
+            .get_provider_by_id(thq_provider_id, app_type_str)
+            .map_err(|e| format!("读取 THQ 供应商失败: {e}"))?
+            .ok_or_else(|| format!("THQ 供应商不存在: {thq_provider_id}"))?;
+        if thq_provider.category.as_deref() == Some("official") {
+            return Err("THQ 路由不能指向官方供应商".to_string());
+        }
+
+        if !self.is_running().await {
+            self.start().await?;
+        }
+
+        let current_config = self
+            .db
+            .get_proxy_config_for_app(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
+        if current_config.enabled {
+            let live_matches_current_proxy =
+                self.live_takeover_matches_current_proxy(&app).await.unwrap_or(false);
+            if live_matches_current_proxy {
+                self.db
+                    .set_current_provider(app_type_str, thq_provider_id)
+                    .map_err(|e| format!("更新 THQ 路由目标失败: {e}"))?;
+                crate::settings::set_current_provider(&app, Some(thq_provider_id))
+                    .map_err(|e| format!("更新本地 THQ 路由目标失败: {e}"))?;
+                self.takeover_live_config_for_provider_strict(&app, &thq_provider)
+                    .await?;
+                if let Some(server) = self.server.read().await.as_ref() {
+                    server
+                        .set_active_target(app_type_str, &thq_provider.id, &thq_provider.name)
+                        .await;
+                }
+                return Ok(());
+            }
+
+            let has_backup = self
+                .db
+                .get_live_backup(app_type_str)
+                .await
+                .map_err(|e| format!("读取 {app_type_str} 备份失败: {e}"))?
+                .is_some();
+            if has_backup {
+                self.restore_live_config_for_app_inner(&app).await?;
+            }
+        }
+
+        self.remember_thq_route_previous_provider(&app, thq_provider_id)?;
+        self.backup_live_config_strict(&app).await?;
+        if let Err(e) = self.sync_live_to_provider(&app).await {
+            let _ = self.db.delete_live_backup(app_type_str).await;
+            let _ = self.restore_thq_route_previous_provider(&app);
+            return Err(e);
+        }
+
+        self.db
+            .set_current_provider(app_type_str, thq_provider_id)
+            .map_err(|e| format!("更新 THQ 路由目标失败: {e}"))?;
+        crate::settings::set_current_provider(&app, Some(thq_provider_id))
+            .map_err(|e| format!("更新本地 THQ 路由目标失败: {e}"))?;
+
+        if let Err(e) = self
+            .takeover_live_config_for_provider_strict(&app, &thq_provider)
+            .await
+        {
+            log::error!("{app_type_str} THQ 路由接管失败，尝试恢复: {e}");
+            let _ = self.restore_live_config_for_app_inner(&app).await;
+            let _ = self.restore_thq_route_previous_provider(&app);
+            let _ = self.db.delete_live_backup(app_type_str).await;
+            return Err(e);
+        }
+
+        let mut updated_config = self
+            .db
+            .get_proxy_config_for_app(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
+        updated_config.enabled = true;
+        self.db
+            .update_proxy_config_for_app(updated_config)
+            .await
+            .map_err(|e| format!("设置 {app_type_str} enabled 状态失败: {e}"))?;
+
+        let _ = self.db.set_live_takeover_active(true).await;
+
+        if let Some(server) = self.server.read().await.as_ref() {
+            server
+                .set_active_target(app_type_str, &thq_provider.id, &thq_provider.name)
+                .await;
+        }
+
+        Ok(())
+    }
+
+    /// 暂停 THQ 路由：恢复 Live 配置，并尽量恢复启用前的当前供应商指针。
+    pub async fn disable_thq_route_for_app(&self, app_type: &str) -> Result<(), String> {
+        let app = AppType::from_str(app_type).map_err(|e| format!("无效的应用类型: {e}"))?;
+        if !Self::app_supports_thq_route(&app) {
+            return Err(format!("{app_type} 暂不支持 THQ 本地路由接管"));
+        }
+        let app_type_str = app.as_str();
+        let _guard = self.switch_locks.lock_for_app(app_type_str).await;
+
+        let current_config = self
+            .db
+            .get_proxy_config_for_app(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} 配置失败: {e}"))?;
+
+        if current_config.enabled {
+            self.restore_live_config_for_app_with_fallback_inner(&app)
+                .await?;
+            self.db
+                .delete_live_backup(app_type_str)
+                .await
+                .map_err(|e| format!("删除 {app_type_str} Live 备份失败: {e}"))?;
+
+            let mut updated_config = current_config;
+            updated_config.enabled = false;
+            self.db
+                .update_proxy_config_for_app(updated_config)
+                .await
+                .map_err(|e| format!("清除 {app_type_str} enabled 状态失败: {e}"))?;
+
+            self.db
+                .clear_provider_health_for_app(app_type_str)
+                .await
+                .map_err(|e| format!("清除 {app_type_str} 健康状态失败: {e}"))?;
+        }
+
+        self.restore_thq_route_previous_provider(&app)?;
+
+        let any_enabled = self
+            .db
+            .is_live_takeover_active()
+            .await
+            .map_err(|e| format!("检查接管状态失败: {e}"))?;
+
+        if !any_enabled {
+            let _ = self.db.set_live_takeover_active(false).await;
+
+            if self.is_running().await {
+                let _ = self.stop().await;
+            }
+        }
+
+        Ok(())
+    }
+
     /// 同步 Live 配置中的 Token 到数据库
     ///
     /// 在清空 Live Token 之前调用，确保数据库中的 Provider 配置有最新的 Token。
@@ -1406,6 +1643,74 @@ impl ProxyService {
 
                 self.write_gemini_live(&live_config)?;
                 log::info!("Gemini Live 配置已接管，代理地址: {proxy_url}");
+            }
+            _ => return Err("该应用不支持代理功能".to_string()),
+        }
+
+        Ok(())
+    }
+
+    async fn takeover_live_config_for_provider_strict(
+        &self,
+        app_type: &AppType,
+        provider: &Provider,
+    ) -> Result<(), String> {
+        let (proxy_url, proxy_codex_base_url) = self.build_proxy_urls().await?;
+
+        match app_type {
+            AppType::Claude => {
+                let mut live_config = self.read_claude_live()?;
+                let provider = self.claude_provider_with_effective_settings(provider)?;
+                Self::apply_claude_takeover_fields_for_provider(
+                    &mut live_config,
+                    &proxy_url,
+                    &provider,
+                );
+                self.write_claude_live(&live_config)?;
+                log::info!("Claude Live 配置已接管到 THQ 路由，代理地址: {proxy_url}");
+            }
+            AppType::Codex => {
+                let mut live_config = self.read_codex_live()?;
+
+                if let Some(auth) = live_config.get_mut("auth").and_then(|v| v.as_object_mut()) {
+                    auth.insert("OPENAI_API_KEY".to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
+                } else if let Some(root) = live_config.as_object_mut() {
+                    root.insert(
+                        "auth".to_string(),
+                        json!({ "OPENAI_API_KEY": PROXY_TOKEN_PLACEHOLDER }),
+                    );
+                }
+
+                let config_str = live_config
+                    .get("config")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let updated_config = Self::apply_codex_proxy_toml_config_for_provider(
+                    config_str,
+                    &proxy_codex_base_url,
+                    Some(provider),
+                );
+                live_config["config"] = json!(updated_config);
+                Self::attach_codex_model_catalog_from_provider(&mut live_config, Some(provider));
+
+                self.write_codex_takeover_live_for_provider(&live_config, Some(provider))?;
+                log::info!("Codex Live 配置已接管到 THQ 路由，代理地址: {proxy_codex_base_url}");
+            }
+            AppType::Gemini => {
+                let mut live_config = self.read_gemini_live()?;
+
+                if let Some(env) = live_config.get_mut("env").and_then(|v| v.as_object_mut()) {
+                    env.insert("GOOGLE_GEMINI_BASE_URL".to_string(), json!(&proxy_url));
+                    env.insert("GEMINI_API_KEY".to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
+                } else {
+                    live_config["env"] = json!({
+                        "GOOGLE_GEMINI_BASE_URL": &proxy_url,
+                        "GEMINI_API_KEY": PROXY_TOKEN_PLACEHOLDER
+                    });
+                }
+
+                self.write_gemini_live(&live_config)?;
+                log::info!("Gemini Live 配置已接管到 THQ 路由，代理地址: {proxy_url}");
             }
             _ => return Err("该应用不支持代理功能".to_string()),
         }
@@ -4501,6 +4806,112 @@ model = "gpt-5.1-codex"
             .expect("backup exists");
         let expected = serde_json::to_string(&provider_b.settings_config).expect("serialize");
         assert_eq!(backup.original_config, expected);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn enable_thq_route_preserves_live_backup_and_restores_provider() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        let original_provider = Provider::with_id(
+            "original".to_string(),
+            "Original".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_API_KEY": "original-provider-key",
+                    "ANTHROPIC_BASE_URL": "https://api.original.example",
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-original"
+                }
+            }),
+            None,
+        );
+        let thq_provider = Provider::with_id(
+            "thq-gateway".to_string(),
+            "THQ Gateway".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_AUTH_TOKEN": "sk-thq",
+                    "ANTHROPIC_BASE_URL": "https://sub.tohoqing.com/v1",
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-20250514"
+                }
+            }),
+            None,
+        );
+        db.save_provider("claude", &original_provider)
+            .expect("save original provider");
+        db.save_provider("claude", &thq_provider)
+            .expect("save thq provider");
+        db.set_current_provider("claude", "original")
+            .expect("set db current provider");
+        crate::settings::set_current_provider(&AppType::Claude, Some("original"))
+            .expect("set local current provider");
+
+        let original_live = json!({
+            "env": {
+                "ANTHROPIC_API_KEY": "original-live-key",
+                "ANTHROPIC_BASE_URL": "https://api.original.example",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-original"
+            },
+            "permissions": { "allow": ["Bash"] }
+        });
+        service
+            .write_claude_live(&original_live)
+            .expect("seed original live config");
+
+        service
+            .enable_thq_route_for_app("claude", "thq-gateway")
+            .await
+            .expect("enable THQ route");
+
+        let backup = db
+            .get_live_backup("claude")
+            .await
+            .expect("get live backup")
+            .expect("backup exists");
+        let backed_up_live: Value =
+            serde_json::from_str(&backup.original_config).expect("parse backup");
+        assert_eq!(
+            backed_up_live, original_live,
+            "THQ route enable must keep the user's original live config as the restore source"
+        );
+        assert_eq!(
+            crate::settings::get_effective_current_provider(&db, &AppType::Claude)
+                .expect("effective current")
+                .as_deref(),
+            Some("thq-gateway"),
+            "THQ should become the proxy target while the route is enabled"
+        );
+
+        let live = service.read_claude_live().expect("read taken-over live");
+        assert_eq!(
+            live.get("env")
+                .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                .and_then(|v| v.as_str()),
+            Some("http://127.0.0.1:15721"),
+            "Claude live config should point to the local proxy"
+        );
+
+        service
+            .disable_thq_route_for_app("claude")
+            .await
+            .expect("disable THQ route");
+
+        assert_eq!(
+            service.read_claude_live().expect("read restored live"),
+            original_live,
+            "pause must restore the user's original live config"
+        );
+        assert_eq!(
+            crate::settings::get_effective_current_provider(&db, &AppType::Claude)
+                .expect("effective current")
+                .as_deref(),
+            Some("original"),
+            "pause must restore the provider target that was active before THQ route enable"
+        );
     }
 
     #[tokio::test]
