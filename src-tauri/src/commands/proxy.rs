@@ -60,6 +60,28 @@ pub async fn set_proxy_takeover_for_app(
         .await
 }
 
+/// 为指定应用启用固定 THQ 路由。
+#[tauri::command]
+pub async fn enable_thq_route_for_app(
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+    provider_id: String,
+) -> Result<(), String> {
+    state
+        .proxy_service
+        .enable_thq_route_for_app(&app_type, &provider_id)
+        .await
+}
+
+/// 暂停指定应用的固定 THQ 路由。
+#[tauri::command]
+pub async fn disable_thq_route_for_app(
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+) -> Result<(), String> {
+    state.proxy_service.disable_thq_route_for_app(&app_type).await
+}
+
 /// 获取代理服务器状态
 #[tauri::command]
 pub async fn get_proxy_status(state: tauri::State<'_, AppState>) -> Result<ProxyStatus, String> {

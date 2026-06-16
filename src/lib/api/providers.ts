@@ -75,6 +75,10 @@ export const providersApi = {
     });
   },
 
+  async upsertThqProvider(provider: Provider, appId: AppId): Promise<boolean> {
+    return await invoke("upsert_thq_provider", { provider, app: appId });
+  },
+
   async delete(id: string, appId: AppId): Promise<boolean> {
     return await invoke("delete_provider", { id, app: appId });
   },

@@ -1,14 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { GatewayDashboard } from "@/components/gateway/GatewayDashboard";
+import { GatewayRouteConsole } from "@/components/gateway/GatewayRouteConsole";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
 import type { AppId } from "@/lib/api";
-import type { GatewayDashboardProps } from "@/components/gateway/GatewayDashboard";
+import type { GatewayRouteConsoleProps } from "@/components/gateway/GatewayRouteConsole";
 
-const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
+const baseProps = (overrides: Partial<GatewayRouteConsoleProps> = {}) =>
   ({
     activeApp: "claude" as AppId,
-    visibleApps: undefined,
     stats: {
       balance: 975325,
       todayUsage: 1405,
@@ -54,12 +53,19 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     ordersLoading: false,
     channels: [],
     paymentsLoading: false,
-    isApplyingToolConfig: false,
+    routeStatus: {
+      claude: false,
+      codex: false,
+      gemini: false,
+      "claude-desktop": false,
+    },
+    routeBusyApp: null,
     isCreatingKey: false,
     isUpdatingKey: false,
     isCreatingOrder: false,
-    onSwitchApp: vi.fn(),
-    onApplyToolConfig: vi.fn(),
+    onEnableRoute: vi.fn(),
+    onDisableRoute: vi.fn(),
+    onRefresh: vi.fn(),
     onCreateKey: vi.fn(),
     onSelectKey: vi.fn(),
     onUpdateKeyGroup: vi.fn(),
@@ -67,14 +73,14 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     onCreateOrder: vi.fn(),
     onOpenExternal: vi.fn(),
     onLogout: vi.fn(),
-    onOpenAdvancedProviders: vi.fn(),
     ...overrides,
-  }) satisfies GatewayDashboardProps;
+  }) satisfies GatewayRouteConsoleProps;
 
-describe("GatewayDashboard", () => {
+describe("GatewayRouteConsole", () => {
   it("renders gateway metrics and keeps model base URL separate from management API", () => {
-    render(<GatewayDashboard {...baseProps()} />);
+    render(<GatewayRouteConsole {...baseProps()} />);
 
+    expect(screen.getByText("THQ 路由控制台")).toBeInTheDocument();
     expect(screen.getByText("账户余额")).toBeInTheDocument();
     expect(screen.getByText("975,325")).toBeInTheDocument();
     expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
@@ -84,9 +90,9 @@ describe("GatewayDashboard", () => {
     expect(screen.queryByText(/api\/v1/)).not.toBeInTheDocument();
   });
 
-  it("renders the ManyTokens-style overview header from the official site", () => {
+  it("renders the default route tools", () => {
     render(
-      <GatewayDashboard
+      <GatewayRouteConsole
         {...baseProps({
           keySelection: {
             status: "ready",
@@ -109,24 +115,22 @@ describe("GatewayDashboard", () => {
       />,
     );
 
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("Gemini")).toBeInTheDocument();
+    expect(screen.getByText("Claude Desktop")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "ManyTokens" }),
+      screen.getByRole("button", { name: "启用 Claude Code 路由" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("来ManyTokens使用更有性价比的产品"),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("使用中").length).toBeGreaterThan(0);
-    expect(screen.getByText("账户余额")).toBeInTheDocument();
-    expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
     expect(screen.getAllByText("ac-switch").length).toBeGreaterThan(0);
   });
 
-  it("disables tool configuration without a selected key secret", () => {
-    const handleApply = vi.fn();
+  it("disables route enable without a selected key secret", () => {
+    const handleEnable = vi.fn();
     render(
-      <GatewayDashboard
+      <GatewayRouteConsole
         {...baseProps({
-          onApplyToolConfig: handleApply,
+          onEnableRoute: handleEnable,
           keySelection: {
             status: "ready",
             selectedKey: { id: "key_1", name: "Main" },
@@ -136,9 +140,10 @@ describe("GatewayDashboard", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "配置到 Claude Code" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "启用 Claude Code 路由" }),
+    );
 
-    expect(screen.getByText("Key 待创建或不可用")).toBeInTheDocument();
-    expect(handleApply).not.toHaveBeenCalled();
+    expect(handleEnable).not.toHaveBeenCalled();
   });
 });

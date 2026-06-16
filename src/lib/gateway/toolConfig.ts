@@ -82,29 +82,43 @@ export const buildGatewayProviderForApp = (
   const { apiKey, models } = options;
 
   if (appId === "claude" || appId === "claude-desktop") {
+    const defaultModel = namedModel(models, GATEWAY_DEFAULT_CLAUDE_MODEL);
+    const claudeDesktopModelRoutes =
+      appId === "claude-desktop"
+        ? {
+            "claude-haiku-4-5": {
+              model: defaultModel,
+              labelOverride: defaultModel,
+              supports1m: true,
+            },
+            "claude-sonnet-4-6": {
+              model: defaultModel,
+              labelOverride: defaultModel,
+              supports1m: true,
+            },
+            "claude-opus-4-8": {
+              model: defaultModel,
+              labelOverride: defaultModel,
+              supports1m: true,
+            },
+          }
+        : undefined;
+
     return {
       ...baseProvider({
         env: {
           ANTHROPIC_BASE_URL: GATEWAY_MODEL_BASE_URL,
           ANTHROPIC_AUTH_TOKEN: apiKey,
-          ANTHROPIC_MODEL: namedModel(models, GATEWAY_DEFAULT_CLAUDE_MODEL),
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: namedModel(
-            models,
-            GATEWAY_DEFAULT_CLAUDE_MODEL,
-          ),
-          ANTHROPIC_DEFAULT_SONNET_MODEL: namedModel(
-            models,
-            GATEWAY_DEFAULT_CLAUDE_MODEL,
-          ),
-          ANTHROPIC_DEFAULT_OPUS_MODEL: namedModel(
-            models,
-            GATEWAY_DEFAULT_CLAUDE_MODEL,
-          ),
+          ANTHROPIC_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: defaultModel,
         },
       }),
       meta: {
         apiFormat: "openai_responses",
-        claudeDesktopMode: appId === "claude-desktop" ? "direct" : undefined,
+        claudeDesktopMode: appId === "claude-desktop" ? "proxy" : undefined,
+        claudeDesktopModelRoutes,
       },
     };
   }

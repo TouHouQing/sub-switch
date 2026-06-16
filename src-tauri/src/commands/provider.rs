@@ -59,6 +59,23 @@ pub fn update_provider(
 }
 
 #[tauri::command]
+pub fn upsert_thq_provider(
+    state: State<'_, AppState>,
+    app: String,
+    provider: Provider,
+) -> Result<bool, String> {
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+    let mut provider = provider;
+    ProviderService::normalize_provider_if_claude(&app_type, &mut provider);
+    ProviderService::validate_provider_settings(&app_type, &provider).map_err(|e| e.to_string())?;
+    state
+        .db
+        .save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
 pub fn delete_provider(
     state: State<'_, AppState>,
     app: String,

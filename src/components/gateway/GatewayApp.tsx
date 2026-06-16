@@ -1,8 +1,13 @@
 import { toast } from "sonner";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { AppId } from "@/lib/api";
-import { settingsApi } from "@/lib/api";
-import { applyGatewayToolConfig } from "@/lib/gateway/applyToolConfig";
+import { providersApi, proxyApi, settingsApi } from "@/lib/api";
+import {
+  disableGatewayRouteForApp,
+  enableGatewayClaudeDesktopRoute,
+  enableGatewayRouteForApp,
+} from "@/lib/gateway/applyToolConfig";
 import {
   useGatewayCreateKeyMutation,
   useGatewayCreatePaymentOrderMutation,
@@ -27,23 +32,20 @@ import {
   GatewayAuthPage,
   type GatewayAuthCredentials,
 } from "./GatewayAuthPage";
-import { GatewayDashboard } from "./GatewayDashboard";
+import { GatewayRouteConsole } from "./GatewayRouteConsole";
 import type { VisibleApps } from "@/types";
+
+type RouteToolId = "claude" | "codex" | "gemini" | "claude-desktop";
 
 interface GatewayAppProps {
   activeApp: AppId;
   visibleApps?: VisibleApps;
-  onSwitchApp: (appId: AppId) => void;
-  onOpenAdvancedProviders: () => void;
+  onSwitchApp?: (appId: AppId) => void;
 }
 
-export function GatewayApp({
-  activeApp,
-  visibleApps,
-  onSwitchApp,
-  onOpenAdvancedProviders,
-}: GatewayAppProps) {
-  const [isApplyingToolConfig, setIsApplyingToolConfig] = useState(false);
+export function GatewayApp({ activeApp, visibleApps }: GatewayAppProps) {
+  void visibleApps;
+  const [routeBusyApp, setRouteBusyApp] = useState<RouteToolId | null>(null);
   const sessionQuery = useGatewaySessionQuery();
   const hasSession = Boolean(sessionQuery.data?.accessToken);
 
@@ -65,6 +67,35 @@ export function GatewayApp({
   const usageQuery = useGatewayUsageQuery(hasSession);
   const ordersQuery = useGatewayOrdersQuery(hasSession);
   const channelsQuery = useGatewayPaymentChannelsQuery(hasSession);
+  const proxyTakeoverQuery = useQuery({
+    queryKey: ["proxyTakeoverStatus"],
+    queryFn: () => proxyApi.getProxyTakeoverStatus(),
+    enabled: hasSession,
+    placeholderData: (previousData) => previousData,
+  });
+  const proxyStatusQuery = useQuery({
+    queryKey: ["proxyStatus"],
+    queryFn: () => proxyApi.getProxyStatus(),
+    enabled: hasSession,
+    placeholderData: (previousData) => previousData,
+  });
+  const claudeDesktopStatusQuery = useQuery({
+    queryKey: ["claudeDesktopStatus"],
+    queryFn: () => providersApi.getClaudeDesktopStatus(),
+    enabled: hasSession,
+    placeholderData: (previousData) => previousData,
+  });
+
+  const routeStatus: Record<RouteToolId, boolean> = {
+    claude: Boolean(proxyTakeoverQuery.data?.claude),
+    codex: Boolean(proxyTakeoverQuery.data?.codex),
+    gemini: Boolean(proxyTakeoverQuery.data?.gemini),
+    "claude-desktop": Boolean(
+      claudeDesktopStatusQuery.data?.configured &&
+        claudeDesktopStatusQuery.data.mode === "proxy" &&
+        claudeDesktopStatusQuery.data.proxyRunning,
+    ),
+  };
 
   const handleLogin = async (credentials: GatewayAuthCredentials) => {
     try {
@@ -126,23 +157,104 @@ export function GatewayApp({
     }
   };
 
-  const handleApplyToolConfig = async () => {
+  const handleRefresh = async () => {
+    await Promise.all([
+      statsQuery.refetch(),
+      keysQuery.refetch(),
+      keyGroupsQuery.refetch(),
+      keySelectionQuery.refetch(),
+      modelsQuery.refetch(),
+      usageQuery.refetch(),
+      ordersQuery.refetch(),
+      channelsQuery.refetch(),
+      proxyTakeoverQuery.refetch(),
+      proxyStatusQuery.refetch(),
+      claudeDesktopStatusQuery.refetch(),
+    ]);
+  };
+
+  const requireSelectedKey = () => {
     if (!selectedKey?.secret) {
       toast.warning("Key 待创建或不可用");
-      return;
+      return null;
     }
+    return selectedKey.secret;
+  };
+
+  const handleEnableRoute = async (appId: RouteToolId) => {
+    const apiKey = requireSelectedKey();
+    if (!apiKey) return;
+
     try {
-      setIsApplyingToolConfig(true);
-      await applyGatewayToolConfig({
-        appId: activeApp,
-        apiKey: selectedKey.secret,
-        models: modelsQuery.data ?? [],
-      });
-      toast.success("已写入本地工具配置");
+      setRouteBusyApp(appId);
+      if (appId === "claude-desktop") {
+        await enableGatewayClaudeDesktopRoute({
+          appId,
+          apiKey,
+          models: modelsQuery.data ?? [],
+        });
+      } else {
+        await enableGatewayRouteForApp({
+          appId,
+          apiKey,
+          models: modelsQuery.data ?? [],
+        });
+      }
+      await Promise.all([
+        proxyTakeoverQuery.refetch(),
+        proxyStatusQuery.refetch(),
+        claudeDesktopStatusQuery.refetch(),
+      ]);
+      const label =
+        appId === "claude"
+          ? "Claude Code"
+          : appId === "claude-desktop"
+            ? "Claude Desktop"
+            : appId === "codex"
+              ? "Codex"
+              : "Gemini";
+      toast.success(`${label} 路由已启用`);
     } catch (error) {
-      toast.error(extractErrorMessage(error) || "写入本地工具配置失败");
+      toast.error(extractErrorMessage(error) || "启用路由失败");
     } finally {
-      setIsApplyingToolConfig(false);
+      setRouteBusyApp(null);
+    }
+  };
+
+  const handleDisableRoute = async (appId: RouteToolId) => {
+    try {
+      setRouteBusyApp(appId);
+      if (appId === "claude-desktop") {
+        if (
+          proxyTakeoverQuery.data?.claude ||
+          proxyTakeoverQuery.data?.codex ||
+          proxyTakeoverQuery.data?.gemini
+        ) {
+          toast.warning("其它工具正在使用路由，请先暂停对应工具。");
+          return;
+        }
+        await proxyApi.stopProxyServer();
+      } else {
+        await disableGatewayRouteForApp(appId);
+      }
+      await Promise.all([
+        proxyTakeoverQuery.refetch(),
+        proxyStatusQuery.refetch(),
+        claudeDesktopStatusQuery.refetch(),
+      ]);
+      const label =
+        appId === "claude"
+          ? "Claude Code"
+          : appId === "claude-desktop"
+            ? "Claude Desktop"
+            : appId === "codex"
+              ? "Codex"
+              : "Gemini";
+      toast.success(`${label} 路由已暂停`);
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || "暂停路由失败");
+    } finally {
+      setRouteBusyApp(null);
     }
   };
 
@@ -179,9 +291,8 @@ export function GatewayApp({
   }
 
   return (
-    <GatewayDashboard
+    <GatewayRouteConsole
       activeApp={activeApp}
-      visibleApps={visibleApps}
       stats={statsQuery.data}
       statsLoading={statsQuery.isLoading}
       keySelection={keySelectionQuery.data}
@@ -197,12 +308,14 @@ export function GatewayApp({
       ordersLoading={ordersQuery.isLoading}
       channels={channelsQuery.data ?? []}
       paymentsLoading={channelsQuery.isLoading}
-      isApplyingToolConfig={isApplyingToolConfig}
+      routeStatus={routeStatus}
+      routeBusyApp={routeBusyApp}
       isCreatingKey={createKeyMutation.isPending}
       isUpdatingKey={updateKeyMutation.isPending}
       isCreatingOrder={createOrderMutation.isPending}
-      onSwitchApp={onSwitchApp}
-      onApplyToolConfig={() => void handleApplyToolConfig()}
+      onEnableRoute={(appId) => void handleEnableRoute(appId)}
+      onDisableRoute={(appId) => void handleDisableRoute(appId)}
+      onRefresh={() => void handleRefresh()}
       onCreateKey={(input) => void handleCreateKey(input)}
       onSelectKey={(keyId) => void selectKeyMutation.mutateAsync(keyId)}
       onUpdateKeyGroup={(keyId, groupId) =>
@@ -212,7 +325,6 @@ export function GatewayApp({
       onCreateOrder={(input) => createOrderMutation.mutateAsync(input)}
       onOpenExternal={(url) => void handleOpenExternal(url)}
       onLogout={() => void handleLogout()}
-      onOpenAdvancedProviders={onOpenAdvancedProviders}
     />
   );
 }
