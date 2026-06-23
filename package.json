@@ -1,6 +1,6 @@
 {
   "name": "thq-switch",
-  "version": "3.16.19",
+  "version": "3.16.20",
   "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI",
   "type": "module",
   "scripts": {

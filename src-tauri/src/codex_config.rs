@@ -111,8 +111,9 @@ pub fn write_codex_live_atomic(
         Some(s) => s.to_string(),
         None => String::new(),
     };
+    let cfg_text = normalize_codex_config_text(&cfg_text)?;
     if !cfg_text.trim().is_empty() {
-        toml::from_str::<toml::Table>(&cfg_text).map_err(|e| AppError::toml(&config_path, e))?;
+        validate_config_toml(&cfg_text)?;
     }
 
     // 第一步：写 auth.json
@@ -154,9 +155,13 @@ pub fn validate_config_toml(text: &str) -> Result<(), AppError> {
 
 /// 读取并校验 `~/.codex/config.toml`，返回文本（可能为空）
 pub fn read_and_validate_codex_config_text() -> Result<String, AppError> {
+    let path = get_codex_config_path();
     let s = read_codex_config_text()?;
-    validate_config_toml(&s)?;
-    Ok(s)
+    let normalized = normalize_codex_config_text(&s)?;
+    if normalized != s && path.exists() {
+        write_text_file(&path, &normalized)?;
+    }
+    Ok(normalized)
 }
 
 fn active_codex_model_provider_id(doc: &DocumentMut) -> Option<String> {
@@ -238,6 +243,165 @@ fn rewrite_legacy_codex_provider_aliases(config_text: &str) -> Result<String, Ap
     }
 }
 
+fn referenced_custom_codex_model_provider_ids(doc: &DocumentMut) -> Vec<String> {
+    let mut ids = Vec::new();
+    let mut seen = HashSet::new();
+    let mut push_provider_id = |provider_id: &str| {
+        let trimmed = provider_id.trim();
+        if is_custom_codex_model_provider_id(trimmed) && seen.insert(trimmed.to_string()) {
+            ids.push(trimmed.to_string());
+        }
+    };
+
+    if let Some(provider_id) = active_codex_model_provider_id(doc) {
+        push_provider_id(&provider_id);
+    }
+
+    if let Some(profiles) = doc.get("profiles").and_then(|item| item.as_table_like()) {
+        for (_, profile_item) in profiles.iter() {
+            let Some(profile_table) = profile_item.as_table_like() else {
+                continue;
+            };
+            let Some(provider_id) = profile_table
+                .get("model_provider")
+                .and_then(|item| item.as_str())
+            else {
+                continue;
+            };
+            push_provider_id(provider_id);
+        }
+    }
+
+    ids
+}
+
+fn normalize_referenced_codex_provider_sections(config_text: &str) -> Result<String, AppError> {
+    if config_text.trim().is_empty() || !config_text.contains("model_provider") {
+        return Ok(config_text.to_string());
+    }
+
+    let mut doc = config_text
+        .parse::<DocumentMut>()
+        .map_err(|e| AppError::Message(format!("Invalid Codex config.toml: {e}")))?;
+    let referenced_provider_ids = referenced_custom_codex_model_provider_ids(&doc);
+    if referenced_provider_ids.is_empty() {
+        return Ok(config_text.to_string());
+    }
+
+    let active_provider_id = active_codex_model_provider_id(&doc);
+    let active_base_url = doc
+        .get("base_url")
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let active_wire_api = doc
+        .get("wire_api")
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let active_bearer_token = doc
+        .get("experimental_bearer_token")
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let mut changed = false;
+    let mut copied_top_level_bearer_token = false;
+
+    if doc
+        .get("model_providers")
+        .and_then(|item| item.as_table())
+        .is_none()
+    {
+        doc["model_providers"] = toml_edit::table();
+        changed = true;
+    }
+
+    let Some(model_providers) = doc
+        .get_mut("model_providers")
+        .and_then(|item| item.as_table_mut())
+    else {
+        return Ok(doc.to_string());
+    };
+
+    for provider_id in &referenced_provider_ids {
+        if model_providers
+            .get(provider_id.as_str())
+            .and_then(|item| item.as_table())
+            .is_none()
+        {
+            model_providers[provider_id.as_str()] = toml_edit::table();
+            changed = true;
+        }
+
+        let Some(provider_table) = model_providers
+            .get_mut(provider_id.as_str())
+            .and_then(|item| item.as_table_mut())
+        else {
+            continue;
+        };
+
+        let has_name = provider_table
+            .get("name")
+            .and_then(|item| item.as_str())
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty());
+        if !has_name {
+            provider_table["name"] = toml_edit::value(provider_id.as_str());
+            changed = true;
+        }
+
+        if active_provider_id.as_deref() != Some(provider_id.as_str()) {
+            continue;
+        }
+
+        if provider_table.get("base_url").is_none() {
+            if let Some(base_url) = active_base_url.as_deref() {
+                provider_table["base_url"] = toml_edit::value(base_url);
+                changed = true;
+            }
+        }
+
+        if provider_table.get("wire_api").is_none() {
+            if let Some(wire_api) = active_wire_api.as_deref() {
+                provider_table["wire_api"] = toml_edit::value(wire_api);
+                changed = true;
+            }
+        }
+
+        if provider_table.get("experimental_bearer_token").is_none() {
+            if let Some(token) = active_bearer_token.as_deref() {
+                provider_table["experimental_bearer_token"] = toml_edit::value(token);
+                copied_top_level_bearer_token = true;
+                changed = true;
+            }
+        }
+    }
+
+    if copied_top_level_bearer_token {
+        doc.as_table_mut().remove("experimental_bearer_token");
+    }
+
+    if changed {
+        Ok(doc.to_string())
+    } else {
+        Ok(config_text.to_string())
+    }
+}
+
+fn normalize_codex_config_text(config_text: &str) -> Result<String, AppError> {
+    if config_text.trim().is_empty() {
+        return Ok(config_text.to_string());
+    }
+
+    let config_text = rewrite_legacy_codex_provider_aliases(config_text)?;
+    let config_text = normalize_referenced_codex_provider_sections(&config_text)?;
+    validate_config_toml(&config_text)?;
+    Ok(config_text)
+}
+
 pub(crate) fn is_custom_codex_model_provider_id(id: &str) -> bool {
     let id = id.trim();
     !id.is_empty()
@@ -257,12 +421,29 @@ pub fn write_codex_live_config_atomic(config_text_opt: Option<&str>) -> Result<(
         Some(config_text) => config_text.to_string(),
         None => String::new(),
     };
+    let cfg_text = normalize_codex_config_text(&cfg_text)?;
 
     if !cfg_text.trim().is_empty() {
-        toml::from_str::<toml::Table>(&cfg_text).map_err(|e| AppError::toml(&config_path, e))?;
+        validate_config_toml(&cfg_text)?;
     }
 
     write_text_file(&config_path, &cfg_text)
+}
+
+pub fn repair_codex_live_config() -> Result<Option<String>, AppError> {
+    let path = get_codex_config_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let raw = read_codex_config_text()?;
+    let normalized = normalize_codex_config_text(&raw)?;
+    if normalized == raw {
+        return Ok(None);
+    }
+
+    write_text_file(&path, &normalized)?;
+    Ok(Some(normalized))
 }
 
 pub fn extract_codex_auth_api_key(auth: &Value) -> Option<String> {
@@ -1148,7 +1329,7 @@ pub fn prepare_codex_provider_live_config(
     auth: &Value,
     config_text: &str,
 ) -> Result<String, AppError> {
-    let config_text = rewrite_legacy_codex_provider_aliases(config_text)?;
+    let config_text = normalize_codex_config_text(config_text)?;
     let token = extract_codex_auth_api_key(auth)
         .or_else(|| extract_codex_experimental_bearer_token(&config_text));
 
@@ -1455,7 +1636,45 @@ experimental_bearer_token = "stale-table-key"
     }
 
     #[test]
-    fn prepare_provider_live_config_does_not_create_incomplete_provider_table() {
+    fn normalize_codex_config_text_synthesizes_active_custom_provider_section_from_top_level_fields(
+    ) {
+        let input = r#"model_provider = "custom"
+model = "gpt-5"
+base_url = "https://relay.example/v1"
+wire_api = "responses"
+experimental_bearer_token = "sk-top-level"
+"#;
+
+        let output = normalize_codex_config_text(input).expect("normalize config");
+        let parsed: toml::Value = toml::from_str(&output).expect("parse output");
+
+        let provider = parsed
+            .get("model_providers")
+            .and_then(|value| value.get("custom"))
+            .expect("custom provider section should be synthesized");
+        assert_eq!(provider.get("name").and_then(|value| value.as_str()), Some("custom"));
+        assert_eq!(
+            provider.get("base_url").and_then(|value| value.as_str()),
+            Some("https://relay.example/v1")
+        );
+        assert_eq!(
+            provider.get("wire_api").and_then(|value| value.as_str()),
+            Some("responses")
+        );
+        assert_eq!(
+            provider
+                .get("experimental_bearer_token")
+                .and_then(|value| value.as_str()),
+            Some("sk-top-level")
+        );
+        assert!(
+            parsed.get("experimental_bearer_token").is_none(),
+            "provider-scoped bearer tokens should be normalized out of the top level for custom providers"
+        );
+    }
+
+    #[test]
+    fn prepare_provider_live_config_synthesizes_missing_custom_provider_table() {
         let input = r#"model_provider = "vendor_x"
 model = "gpt-5"
 "#;
@@ -1465,15 +1684,23 @@ model = "gpt-5"
                 .expect("prepare live config");
         let parsed: toml::Value = toml::from_str(&output).expect("parse output");
 
+        let provider = parsed
+            .get("model_providers")
+            .and_then(|value| value.get("vendor_x"))
+            .expect("missing active provider table should be synthesized for backward compatibility");
         assert_eq!(
-            parsed
+            provider.get("name").and_then(|value| value.as_str()),
+            Some("vendor_x")
+        );
+        assert_eq!(
+            provider
                 .get("experimental_bearer_token")
-                .and_then(|v| v.as_str()),
+                .and_then(|value| value.as_str()),
             Some("sk-test")
         );
         assert!(
-            parsed.get("model_providers").is_none(),
-            "missing provider tables should not be synthesized without endpoint fields"
+            parsed.get("experimental_bearer_token").is_none(),
+            "custom provider tokens should live inside the provider table once synthesized"
         );
     }
 
@@ -1526,6 +1753,59 @@ model = "gpt-5.4"
             Some("vendor_alpha"),
             "profile provider references should be preserved"
         );
+    }
+
+    #[test]
+    fn read_and_validate_codex_config_text_repairs_missing_custom_provider_section_on_disk() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let old_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        let old_home = std::env::var_os("HOME");
+        std::env::set_var("CC_SWITCH_TEST_HOME", temp.path());
+        std::env::set_var("HOME", temp.path());
+
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let codex_dir = temp.path().join(".codex");
+            std::fs::create_dir_all(&codex_dir)?;
+            let config_path = codex_dir.join("config.toml");
+            std::fs::write(
+                &config_path,
+                r#"model_provider = "custom"
+model = "gpt-5"
+base_url = "https://relay.example/v1"
+wire_api = "responses"
+"#,
+            )?;
+
+            let normalized = read_and_validate_codex_config_text()?;
+            let persisted = std::fs::read_to_string(&config_path)?;
+            let parsed: toml::Value = toml::from_str(&persisted)?;
+            let provider = parsed
+                .get("model_providers")
+                .and_then(|value| value.get("custom"))
+                .expect("custom provider section should be persisted back to disk");
+
+            assert_eq!(normalized, persisted);
+            assert_eq!(
+                provider.get("base_url").and_then(|value| value.as_str()),
+                Some("https://relay.example/v1")
+            );
+            assert_eq!(
+                provider.get("wire_api").and_then(|value| value.as_str()),
+                Some("responses")
+            );
+            Ok(())
+        })();
+
+        match old_test_home {
+            Some(value) => std::env::set_var("CC_SWITCH_TEST_HOME", value),
+            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+        }
+        match old_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+
+        result.expect("read+repair config");
     }
 
     #[test]

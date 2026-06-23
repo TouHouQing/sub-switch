@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GatewayRouteConsole } from "@/components/gateway/GatewayRouteConsole";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
@@ -150,6 +150,70 @@ describe("GatewayRouteConsole", () => {
     );
 
     expect(handleEnable).toHaveBeenCalledWith("codex");
+  });
+
+  it("makes the active tool route state explicit in the console header", () => {
+    const { rerender } = render(
+      <GatewayRouteConsole
+        {...baseProps({
+          activeApp: "codex" as AppId,
+          keySelection: {
+            status: "ready",
+            selectedKey: {
+              id: "key-1",
+              name: "Main",
+              secret: "sk-main",
+            },
+          },
+          keys: [{ id: "key-1", name: "Main", secret: "sk-main" }],
+          routeStatus: {
+            claude: false,
+            codex: true,
+            gemini: false,
+            "claude-desktop": false,
+          },
+        })}
+      />,
+    );
+
+    const activeStatus = screen.getByRole("status", {
+      name: "当前工具 Codex 使用中",
+    });
+    expect(activeStatus).toBeInTheDocument();
+    expect(
+      within(activeStatus).getByText("Codex 正在通过 THQ 路由"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <GatewayRouteConsole
+        {...baseProps({
+          activeApp: "codex" as AppId,
+          keySelection: {
+            status: "ready",
+            selectedKey: {
+              id: "key-1",
+              name: "Main",
+              secret: "sk-main",
+            },
+          },
+          keys: [{ id: "key-1", name: "Main", secret: "sk-main" }],
+          routeStatus: {
+            claude: false,
+            codex: false,
+            gemini: false,
+            "claude-desktop": false,
+          },
+        })}
+      />,
+    );
+
+    const pausedStatus = screen.getByRole("status", {
+      name: "当前工具 Codex 暂停中",
+    });
+    expect(pausedStatus).toBeInTheDocument();
+    expect(
+      within(pausedStatus).getByText("Codex 当前未接管配置"),
+    ).toBeInTheDocument();
   });
 
   it("disables route enable without a selected key secret", () => {

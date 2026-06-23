@@ -1,4 +1,5 @@
 import {
+  CheckCircle2,
   Coins,
   CreditCard,
   Gauge,
@@ -23,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatGatewayNumber } from "@/components/gateway/format";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
+import { cn } from "@/lib/utils";
 import type { AppId } from "@/lib/api";
 import type {
   GatewayApiKey,
@@ -112,7 +114,22 @@ const routeTools: Array<{
   },
 ];
 
-const routeLabel = (enabled: boolean) => (enabled ? "路由已启用" : "已暂停");
+const routeLabel = (enabled: boolean) => (enabled ? "使用中" : "暂停中");
+
+const routeStateCopy = (toolName: string, enabled: boolean) =>
+  enabled
+    ? {
+        status: "使用中",
+        headline: `${toolName} 正在通过 THQ 路由`,
+        detail: "当前请求会写入本地代理配置，并转发到 sub.tohoqing.com。",
+        action: `暂停 ${toolName} 路由`,
+      }
+    : {
+        status: "暂停中",
+        headline: `${toolName} 当前未接管配置`,
+        detail: "工具会继续使用暂停前恢复的原配置；启用后会重新备份并接管。",
+        action: `启用 ${toolName} 路由`,
+      };
 
 export function GatewayRouteConsole({
   activeApp,
@@ -158,6 +175,7 @@ export function GatewayRouteConsole({
   const activeRouteBusy = activeRouteTool
     ? routeBusyApp === activeRouteTool.id
     : false;
+  const activeRouteCopy = routeStateCopy(activeTool, activeRouteEnabled);
 
   return (
     <main className="min-h-full overflow-y-auto bg-[#f7f8f5] px-4 pb-10 pt-4 text-slate-950 dark:bg-background dark:text-foreground sm:px-6">
@@ -194,16 +212,71 @@ export function GatewayRouteConsole({
                       <span>{GATEWAY_MODEL_BASE_URL}</span>
                     </span>
                   </div>
+
+                  {activeRouteTool ? (
+                    <div
+                      role="status"
+                      aria-label={`当前工具 ${activeTool} ${activeRouteCopy.status}`}
+                      className={cn(
+                        "mt-4 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between",
+                        activeRouteEnabled
+                          ? "border-emerald-300/70 bg-emerald-50 text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+                          : "border-amber-300/70 bg-amber-50 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100",
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
+                            activeRouteEnabled
+                              ? "border-emerald-300 bg-white/70 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200"
+                              : "border-amber-300 bg-white/70 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200",
+                          )}
+                        >
+                          {activeRouteEnabled ? (
+                            <CheckCircle2 className="h-5 w-5" />
+                          ) : (
+                            <Pause className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold">
+                              {activeRouteCopy.headline}
+                            </p>
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                                activeRouteEnabled
+                                  ? "bg-emerald-600 text-white dark:bg-emerald-400 dark:text-emerald-950"
+                                  : "bg-amber-600 text-white dark:bg-amber-300 dark:text-amber-950",
+                              )}
+                            >
+                              {activeRouteCopy.status}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 opacity-80">
+                            {activeRouteCopy.detail}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs font-medium opacity-80 sm:text-right">
+                        下一步：{activeRouteCopy.action}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {activeRouteTool ? (
                     <Button
                       type="button"
-                      variant={activeRouteEnabled ? "outline" : "default"}
+                      variant={activeRouteEnabled ? "outline" : "mcp"}
                       size="sm"
                       className={
-                        activeRouteEnabled ? "bg-white dark:bg-card" : undefined
+                        activeRouteEnabled
+                          ? "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400 hover:bg-amber-100 hover:text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/20"
+                          : undefined
                       }
                       disabled={activeRouteBusy || !hasKeySecret}
                       aria-label={
@@ -225,8 +298,8 @@ export function GatewayRouteConsole({
                       {activeRouteBusy
                         ? "处理中..."
                         : activeRouteEnabled
-                          ? `暂停当前工具 ${activeRouteTool.name}`
-                          : `启用当前工具 ${activeRouteTool.name}`}
+                          ? `暂停 ${activeRouteTool.name} 路由`
+                          : `启用 ${activeRouteTool.name} 路由`}
                     </Button>
                   ) : null}
                   <Button
@@ -365,21 +438,34 @@ export function GatewayRouteConsole({
               const enabled = routeStatus[tool.id];
               const busy = routeBusyApp === tool.id;
               const Icon = tool.icon;
+              const copy = routeStateCopy(tool.name, enabled);
               return (
                 <article
                   key={tool.id}
-                  className="flex min-h-[196px] flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 dark:border-border-default dark:bg-background/50"
+                  className={cn(
+                    "flex min-h-[214px] flex-col justify-between rounded-lg border p-4 transition-colors",
+                    enabled
+                      ? "border-emerald-300/70 bg-emerald-50/70 shadow-sm hover:border-emerald-400 dark:border-emerald-400/30 dark:bg-emerald-500/10"
+                      : "border-slate-200 bg-slate-50 hover:border-amber-300 dark:border-border-default dark:bg-background/50 dark:hover:border-amber-400/30",
+                  )}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-800 shadow-sm dark:bg-card dark:text-foreground">
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-lg border shadow-sm",
+                          enabled
+                            ? "border-emerald-200 bg-white text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200"
+                            : "border-slate-200 bg-white text-slate-700 dark:border-border-default dark:bg-card dark:text-foreground",
+                        )}
+                      >
                         <Icon className="h-5 w-5" />
                       </div>
                       <Badge
                         className={
                           enabled
-                            ? "border-transparent bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
-                            : "border-transparent bg-slate-200 text-slate-600 hover:bg-slate-200 dark:bg-muted dark:text-muted-foreground"
+                            ? "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-400 dark:text-emerald-950"
+                            : "border-transparent bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-400/15 dark:text-amber-200"
                         }
                       >
                         {routeLabel(enabled)}
@@ -391,17 +477,30 @@ export function GatewayRouteConsole({
                     <p className="mt-1 text-sm text-slate-600 dark:text-muted-foreground">
                       {tool.detail}
                     </p>
-                    {enabled ? (
-                      <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                        {tool.name} 路由已启用
+                    <div
+                      className={cn(
+                        "mt-3 rounded-md border px-3 py-2 text-sm",
+                        enabled
+                          ? "border-emerald-200 bg-white/70 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200"
+                          : "border-amber-200 bg-white/70 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200",
+                      )}
+                    >
+                      <p className="font-medium">{copy.headline}</p>
+                      <p className="mt-0.5 text-xs opacity-75">
+                        {enabled ? "请求经 THQ" : "保留原配置"}
                       </p>
-                    ) : null}
+                    </div>
                   </div>
 
                   <Button
                     type="button"
-                    variant={enabled ? "outline" : "default"}
-                    className="mt-4 w-full"
+                    variant={enabled ? "outline" : "mcp"}
+                    className={cn(
+                      "mt-4 w-full",
+                      enabled
+                        ? "border-amber-300 bg-white text-amber-900 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/20"
+                        : undefined,
+                    )}
                     disabled={busy || !hasKeySecret}
                     aria-label={
                       enabled

@@ -362,6 +362,10 @@ pub fn run() {
             // 放在日志系统初始化之后，确保 init 的日志能正常输出。
             usage_events::init(app.handle().clone());
 
+            if let Err(err) = crate::codex_config::repair_codex_live_config() {
+                log::warn!("修复 Codex live config 兼容性失败: {err}");
+            }
+
             // 初始化数据库
             let app_config_dir = crate::config::get_app_config_dir();
             let db_path = app_config_dir.join(crate::identity::APP_DATABASE_FILE_NAME);
