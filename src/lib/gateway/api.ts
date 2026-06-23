@@ -174,6 +174,18 @@ const buildPaymentOrderPayload = (
   return payload;
 };
 
+const gatewayGroupIdPayloadValue = (value: string): number | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const groupId = Number(trimmed);
+  if (!Number.isSafeInteger(groupId)) {
+    throw new Error("Gateway group id must be a numeric integer");
+  }
+
+  return groupId;
+};
+
 const buildCreateKeyPayload = (
   input?: string | GatewayCreateKeyInput,
 ): Record<string, unknown> => {
@@ -181,7 +193,11 @@ const buildCreateKeyPayload = (
   const payload: Record<string, unknown> = {
     name: source.name?.trim() || "Desktop Client",
   };
-  if (source.groupId?.trim()) payload.group_id = source.groupId.trim();
+  const groupId =
+    source.groupId !== undefined
+      ? gatewayGroupIdPayloadValue(source.groupId)
+      : undefined;
+  if (groupId !== undefined) payload.group_id = groupId;
   return payload;
 };
 
@@ -190,7 +206,10 @@ const buildUpdateKeyPayload = (
 ): Record<string, unknown> => {
   const payload: Record<string, unknown> = {};
   if (input.name !== undefined) payload.name = input.name.trim();
-  if (input.groupId !== undefined) payload.group_id = input.groupId.trim();
+  if (input.groupId !== undefined) {
+    const groupId = gatewayGroupIdPayloadValue(input.groupId);
+    if (groupId !== undefined) payload.group_id = groupId;
+  }
   if (input.status !== undefined) payload.status = input.status;
   return payload;
 };

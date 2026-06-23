@@ -125,6 +125,33 @@ describe("GatewayRouteConsole", () => {
     expect(screen.getAllByText("ac-switch").length).toBeGreaterThan(0);
   });
 
+  it("shows a primary route action for the active tool in the console header", () => {
+    const handleEnable = vi.fn();
+    render(
+      <GatewayRouteConsole
+        {...baseProps({
+          activeApp: "codex" as AppId,
+          keySelection: {
+            status: "ready",
+            selectedKey: {
+              id: "key-1",
+              name: "Main",
+              secret: "sk-main",
+            },
+          },
+          keys: [{ id: "key-1", name: "Main", secret: "sk-main" }],
+          onEnableRoute: handleEnable,
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "启用当前工具 Codex 路由" }),
+    );
+
+    expect(handleEnable).toHaveBeenCalledWith("codex");
+  });
+
   it("disables route enable without a selected key secret", () => {
     const handleEnable = vi.fn();
     render(

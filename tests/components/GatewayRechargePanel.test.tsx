@@ -68,4 +68,35 @@ describe("GatewayRechargePanel", () => {
       "https://render.alipay.com/p/yuyan/180020040001212700/?cid=wap_dc",
     );
   });
+
+  it("renders payment page URLs as generated QR images", async () => {
+    const paymentUrl =
+      "https://render.alipay.com/p/yuyan/180020040001212700/?cid=wap_dc";
+    const handleCreateOrder = vi.fn().mockResolvedValue({
+      id: "order-qr-url",
+      amount: 20,
+      qrCode: paymentUrl,
+      paymentMode: "qrcode",
+    });
+
+    render(
+      <GatewayRechargePanel
+        channels={[{ id: "alipay", name: "支付宝", enabled: true }]}
+        loading={false}
+        isCreatingOrder={false}
+        onCreateOrder={handleCreateOrder}
+        onOpenExternal={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "充值" }));
+
+    const qrImage = await screen.findByAltText("支付宝付款二维码");
+    expect(qrImage).toHaveAttribute(
+      "src",
+      `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+        paymentUrl,
+      )}`,
+    );
+  });
 });

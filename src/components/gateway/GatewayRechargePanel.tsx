@@ -10,13 +10,32 @@ import type {
 } from "@/types/gateway";
 
 const RECHARGE_AMOUNTS = [10, 20, 50, 100, 200, 500] as const;
+const QR_IMAGE_URL_PATTERN = /\.(?:png|jpe?g|gif|webp|svg|bmp|ico)(?:[?#]|$)/i;
+
+const isPaymentPageUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return (
+      host === "render.alipay.com" ||
+      host === "qr.alipay.com" ||
+      host === "wx.tenpay.com" ||
+      host === "payapp.weixin.qq.com"
+    );
+  } catch {
+    return false;
+  }
+};
 
 const toQrImageSource = (value: string): string => {
   const trimmed = value.trim();
+  if (trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
   if (
-    trimmed.startsWith("data:image/") ||
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://")
+    (trimmed.startsWith("http://") || trimmed.startsWith("https://")) &&
+    !isPaymentPageUrl(trimmed) &&
+    QR_IMAGE_URL_PATTERN.test(trimmed)
   ) {
     return trimmed;
   }

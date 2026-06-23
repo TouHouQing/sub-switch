@@ -150,8 +150,14 @@ export function GatewayRouteConsole({
   const selectedKey = keySelection?.selectedKey ?? null;
   const hasKeySecret = Boolean(selectedKey?.secret);
   const activeRoutes = routeTools.filter((tool) => routeStatus[tool.id]).length;
-  const activeTool =
-    routeTools.find((tool) => tool.id === activeApp)?.name ?? "Claude Code";
+  const activeRouteTool = routeTools.find((tool) => tool.id === activeApp);
+  const activeTool = activeRouteTool?.name ?? "Claude Code";
+  const activeRouteEnabled = activeRouteTool
+    ? routeStatus[activeRouteTool.id]
+    : false;
+  const activeRouteBusy = activeRouteTool
+    ? routeBusyApp === activeRouteTool.id
+    : false;
 
   return (
     <main className="min-h-full overflow-y-auto bg-[#f7f8f5] px-4 pb-10 pt-4 text-slate-950 dark:bg-background dark:text-foreground sm:px-6">
@@ -191,6 +197,38 @@ export function GatewayRouteConsole({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {activeRouteTool ? (
+                    <Button
+                      type="button"
+                      variant={activeRouteEnabled ? "outline" : "default"}
+                      size="sm"
+                      className={
+                        activeRouteEnabled ? "bg-white dark:bg-card" : undefined
+                      }
+                      disabled={activeRouteBusy || !hasKeySecret}
+                      aria-label={
+                        activeRouteEnabled
+                          ? `暂停当前工具 ${activeRouteTool.name} 路由`
+                          : `启用当前工具 ${activeRouteTool.name} 路由`
+                      }
+                      onClick={() =>
+                        activeRouteEnabled
+                          ? onDisableRoute(activeRouteTool.id)
+                          : onEnableRoute(activeRouteTool.id)
+                      }
+                    >
+                      {activeRouteEnabled ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      {activeRouteBusy
+                        ? "处理中..."
+                        : activeRouteEnabled
+                          ? `暂停当前工具 ${activeRouteTool.name}`
+                          : `启用当前工具 ${activeRouteTool.name}`}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
