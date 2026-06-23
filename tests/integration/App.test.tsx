@@ -306,7 +306,10 @@ describe("App integration with MSW", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Claude Code 路由已启用")).toBeInTheDocument();
+      expect(
+        screen.getByRole("status", { name: "当前工具 Claude Code 使用中" }),
+      ).toBeInTheDocument();
+      expect(toastSuccessMock).toHaveBeenCalledWith("Claude Code 路由已启用");
     });
 
     fireEvent.click(
@@ -314,7 +317,10 @@ describe("App integration with MSW", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByText("已暂停")).not.toHaveLength(0);
+      expect(
+        screen.getByRole("status", { name: "当前工具 Claude Code 暂停中" }),
+      ).toBeInTheDocument();
+      expect(toastSuccessMock).toHaveBeenCalledWith("Claude Code 路由已暂停");
     });
 
     fireEvent.click(
@@ -323,7 +329,9 @@ describe("App integration with MSW", () => {
 
     await waitFor(() => {
       expect(getCurrentProviderId("claude-desktop")).toBe("thq-gateway");
-      expect(screen.getByText("Claude Desktop 路由已启用")).toBeInTheDocument();
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        "Claude Desktop 路由已启用",
+      );
     });
   }, 15_000);
 
