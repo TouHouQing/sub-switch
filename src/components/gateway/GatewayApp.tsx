@@ -41,9 +41,14 @@ interface GatewayAppProps {
   activeApp: AppId;
   visibleApps?: VisibleApps;
   onSwitchApp?: (appId: AppId) => void;
+  onOpenClaudeMapping?: () => void;
 }
 
-export function GatewayApp({ activeApp, visibleApps }: GatewayAppProps) {
+export function GatewayApp({
+  activeApp,
+  visibleApps,
+  onOpenClaudeMapping,
+}: GatewayAppProps) {
   void visibleApps;
   const [routeBusyApp, setRouteBusyApp] = useState<RouteToolId | null>(null);
   const sessionQuery = useGatewaySessionQuery();
@@ -171,6 +176,14 @@ export function GatewayApp({ activeApp, visibleApps }: GatewayAppProps) {
       proxyStatusQuery.refetch(),
       claudeDesktopStatusQuery.refetch(),
     ]);
+  };
+
+  const handleOpenClaudeMapping = () => {
+    if (onOpenClaudeMapping) {
+      onOpenClaudeMapping();
+      return;
+    }
+    toast.info("请从 Claude Desktop 供应商配置页打开模型映射");
   };
 
   const requireSelectedKey = () => {
@@ -325,6 +338,7 @@ export function GatewayApp({ activeApp, visibleApps }: GatewayAppProps) {
       onCreateOrder={(input) => createOrderMutation.mutateAsync(input)}
       onOpenExternal={(url) => void handleOpenExternal(url)}
       onLogout={() => void handleLogout()}
+      onOpenClaudeMapping={handleOpenClaudeMapping}
     />
   );
 }
