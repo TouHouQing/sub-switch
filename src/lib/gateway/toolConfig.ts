@@ -27,6 +27,8 @@ const modelIds = (models: GatewayModel[]): string[] => {
 const namedModel = (models: GatewayModel[], fallback: string): string =>
   modelIds(models)[0] ?? fallback;
 
+const CODEX_GATEWAY_PROVIDER_ID = "custom";
+
 const baseProvider = (
   settingsConfig: Provider["settingsConfig"],
 ): Provider => ({
@@ -47,12 +49,12 @@ const tomlString = (value: string): string => JSON.stringify(value);
 
 const buildCodexConfig = (models: GatewayModel[]): string => {
   const model = namedModel(models, GATEWAY_DEFAULT_MODEL);
-  return `model_provider = "${GATEWAY_PROVIDER_ID}"
+  return `model_provider = "${CODEX_GATEWAY_PROVIDER_ID}"
 model = ${tomlString(model)}
 model_reasoning_effort = "high"
 disable_response_storage = true
 
-[model_providers.${GATEWAY_PROVIDER_ID}]
+[model_providers.${CODEX_GATEWAY_PROVIDER_ID}]
 name = ${tomlString(GATEWAY_PROVIDER_NAME)}
 base_url = ${tomlString(GATEWAY_MODEL_BASE_URL)}
 wire_api = "responses"
