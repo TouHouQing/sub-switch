@@ -11,6 +11,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Settings2,
   Terminal,
   WalletCards,
 } from "lucide-react";
@@ -75,6 +76,7 @@ export interface GatewayRouteConsoleProps {
   ) => Promise<GatewayOrder | void> | GatewayOrder | void;
   onOpenExternal: (url: string) => void;
   onLogout: () => void;
+  onOpenClaudeMapping?: () => void;
 }
 
 const routeTools: Array<{
@@ -163,6 +165,7 @@ export function GatewayRouteConsole({
   onCreateOrder,
   onOpenExternal,
   onLogout,
+  onOpenClaudeMapping,
 }: GatewayRouteConsoleProps) {
   const selectedKey = keySelection?.selectedKey ?? null;
   const hasKeySecret = Boolean(selectedKey?.secret);
@@ -300,6 +303,18 @@ export function GatewayRouteConsole({
                         : activeRouteEnabled
                           ? `暂停 ${activeRouteTool.name} 路由`
                           : `启用 ${activeRouteTool.name} 路由`}
+                    </Button>
+                  ) : null}
+                  {onOpenClaudeMapping ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="bg-white dark:bg-card"
+                      onClick={onOpenClaudeMapping}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Claude Desktop 模型映射
                     </Button>
                   ) : null}
                   <Button
