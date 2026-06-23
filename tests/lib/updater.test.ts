@@ -21,7 +21,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 describe("checkForUpdate", () => {
   beforeEach(() => {
-    getVersionMock.mockResolvedValue("3.16.20");
+    getVersionMock.mockResolvedValue("3.16.21");
     updaterCheckMock.mockReset();
   });
 
@@ -36,12 +36,12 @@ describe("checkForUpdate", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse([
         {
-          tag_name: "v3.16.21",
+          tag_name: "v3.16.22",
           body: "Fix update checking",
           published_at: "2026-06-23T01:56:19Z",
         },
         {
-          tag_name: "v3.16.20",
+          tag_name: "v3.16.21",
           body: "Current release",
           published_at: "2026-06-22T01:56:19Z",
         },
@@ -51,8 +51,8 @@ describe("checkForUpdate", () => {
     await expect(checkForUpdate()).resolves.toEqual({
       status: "available",
       info: {
-        currentVersion: "3.16.20",
-        availableVersion: "3.16.21",
+        currentVersion: "3.16.21",
+        availableVersion: "3.16.22",
         notes: "Fix update checking",
         pubDate: "2026-06-23T01:56:19Z",
         canInstall: false,
@@ -76,7 +76,7 @@ describe("checkForUpdate", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse([
         {
-          tag_name: "v3.16.20",
+          tag_name: "v3.16.21",
           body: "Current release",
           published_at: "2026-06-22T01:56:19Z",
         },
