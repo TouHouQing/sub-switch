@@ -876,6 +876,10 @@ function App() {
               activeApp={activeApp}
               visibleApps={visibleApps}
               onSwitchApp={setActiveApp}
+              onOpenClaudeMapping={() => {
+                setActiveApp("claude-desktop");
+                setCurrentView("providers");
+              }}
             />
           );
         case "settings":
