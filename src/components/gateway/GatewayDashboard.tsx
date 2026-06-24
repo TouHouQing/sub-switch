@@ -1,14 +1,16 @@
 import {
+  CirclePause,
+  CirclePlay,
   Coins,
   CreditCard,
   FileText,
   Gauge,
   Hash,
   LineChart,
+  Loader2,
   LogOut,
   Power,
   Settings2,
-  SquarePen,
   WalletCards,
 } from "lucide-react";
 import { GatewayKeyPanel } from "@/components/gateway/GatewayKeyPanel";
@@ -56,11 +58,14 @@ export interface GatewayDashboardProps {
   channels: GatewayPaymentChannel[];
   paymentsLoading: boolean;
   isApplyingToolConfig: boolean;
+  isRouteRunning: boolean;
+  isRoutePowerPending: boolean;
   isCreatingKey: boolean;
   isUpdatingKey: boolean;
   isCreatingOrder: boolean;
   onSwitchApp: (appId: AppId) => void;
-  onApplyToolConfig: () => void;
+  onApplyToolConfig: (appId: AppId) => void;
+  onToggleRoutePower: () => void;
   onCreateKey: (input: GatewayCreateKeyInput) => void;
   onSelectKey: (keyId: string) => void;
   onUpdateKeyGroup: (keyId: string, groupId: string) => void;
@@ -92,11 +97,14 @@ export function GatewayDashboard({
   channels,
   paymentsLoading,
   isApplyingToolConfig,
+  isRouteRunning,
+  isRoutePowerPending,
   isCreatingKey,
   isUpdatingKey,
   isCreatingOrder,
   onSwitchApp,
   onApplyToolConfig,
+  onToggleRoutePower,
   onCreateKey,
   onSelectKey,
   onUpdateKeyGroup,
@@ -107,17 +115,27 @@ export function GatewayDashboard({
   onOpenAdvancedProviders,
 }: GatewayDashboardProps) {
   const selectedKey = keySelection?.selectedKey ?? null;
-  const hasKeySecret = Boolean(selectedKey?.secret);
   const currentGroupName =
     selectedKey?.groupName ??
     groups.find((group) => group.id === selectedKey?.groupId)?.name ??
     groups[0]?.name;
+  const visibleToolCount = Object.values(
+    visibleApps ?? {
+      claude: true,
+      "claude-desktop": true,
+      codex: true,
+      gemini: true,
+      opencode: true,
+      openclaw: true,
+      hermes: true,
+    },
+  ).filter(Boolean).length;
 
   return (
     <main className="min-h-full overflow-y-auto bg-white px-6 pb-12 pt-4 text-slate-950 dark:bg-background dark:text-foreground">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-        <section className="rounded-lg border border-blue-400 bg-gradient-to-br from-blue-50 via-white to-sky-50 p-6 shadow-sm dark:border-blue-500/35 dark:from-blue-950/30 dark:via-background dark:to-cyan-950/20">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+        <section className="rounded-lg border border-border-default bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex min-w-0 items-start gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm dark:border-border-default dark:bg-card">
                 <span className="text-2xl font-black text-slate-950 dark:text-white">
@@ -127,10 +145,25 @@ export function GatewayDashboard({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-semibold tracking-normal text-slate-950 dark:text-white">
-                    ManyTokens
+                    THQ 路由控制台
                   </h1>
-                  <Badge className="border-transparent bg-blue-500/10 text-blue-600 hover:bg-blue-500/10 dark:text-blue-300">
-                    {hasKeySecret ? "使用中" : "待创建"}
+                  <Badge
+                    className={
+                      isRouteRunning
+                        ? "border-transparent bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+                        : "border-transparent bg-amber-500/10 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                    }
+                  >
+                    {isRouteRunning ? "运行中" : "暂停中"}
+                  </Badge>
+                  <Badge className="border-transparent bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300">
+                    固定 sub.tohoqing.com
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 bg-white text-slate-800 dark:border-border-default dark:bg-card dark:text-foreground"
+                  >
+                    {visibleToolCount} 个工具启用
                   </Badge>
                   {currentGroupName ? (
                     <Badge
@@ -142,11 +175,16 @@ export function GatewayDashboard({
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm text-slate-500 dark:text-muted-foreground">
-                  来ManyTokens使用更有性价比的产品
+                  打开软件后默认使用 THQ 作为路由目标。启动会开启路由服务，暂停会恢复启用前的配置。
                 </p>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-muted-foreground">
-                  Model Base：{GATEWAY_MODEL_BASE_URL}
-                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-md bg-muted px-2.5 py-1 text-muted-foreground">
+                    当前查看：{activeApp}
+                  </span>
+                  <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 text-muted-foreground">
+                    Model Base：{GATEWAY_MODEL_BASE_URL}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -206,17 +244,6 @@ export function GatewayDashboard({
                 variant="outline"
                 size="icon"
                 className="bg-white"
-                onClick={onApplyToolConfig}
-                aria-label="写入本地配置"
-                disabled={isApplyingToolConfig}
-              >
-                <SquarePen className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="bg-white"
                 onClick={onLogout}
                 aria-label="退出登录"
               >
@@ -225,16 +252,52 @@ export function GatewayDashboard({
             </div>
           </div>
 
-          <div className="mt-4 flex justify-center">
-            <div className="flex flex-col items-center">
-              <div className="flex h-28 w-28 items-center justify-center rounded-full bg-emerald-300/35">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-emerald-200 bg-emerald-500 text-white shadow-lg shadow-emerald-500/25">
-                  <Power className="h-12 w-12" />
+          <div className="mt-5 rounded-lg border border-border-default bg-gradient-to-r from-slate-50 to-white p-4 dark:from-muted/20 dark:to-card">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4">
+                <div
+                  className={
+                    isRouteRunning
+                      ? "flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                      : "flex h-14 w-14 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                  }
+                >
+                  <Power className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">路由总开关</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {isRouteRunning
+                      ? "当前路由服务已启动，下面的工具路由会转向 THQ。"
+                      : "当前路由服务已暂停，工具会保留原配置等待恢复。"}
+                  </p>
                 </div>
               </div>
-              <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-white">
-                {hasKeySecret ? "使用中" : "待创建"}
-              </p>
+              <Button
+                type="button"
+                size="lg"
+                variant={isRouteRunning ? "outline" : "default"}
+                className={
+                  isRouteRunning
+                    ? "min-w-[132px] border-amber-500/35 bg-white text-amber-700 hover:bg-amber-50 dark:bg-card dark:text-amber-300 dark:hover:bg-amber-950/20"
+                    : "min-w-[132px]"
+                }
+                onClick={onToggleRoutePower}
+                disabled={isRoutePowerPending}
+              >
+                {isRoutePowerPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isRouteRunning ? (
+                  <CirclePause className="h-4 w-4" />
+                ) : (
+                  <CirclePlay className="h-4 w-4" />
+                )}
+                {isRoutePowerPending
+                  ? "处理中..."
+                  : isRouteRunning
+                    ? "暂停路由"
+                    : "启动路由"}
+              </Button>
             </div>
           </div>
 

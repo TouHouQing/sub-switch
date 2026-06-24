@@ -22,6 +22,7 @@ import {
   useGatewayUpdateKeyMutation,
   useGatewayUsageQuery,
 } from "@/lib/query/gateway";
+import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import {
   GatewayAuthPage,
@@ -65,6 +66,13 @@ export function GatewayApp({
   const usageQuery = useGatewayUsageQuery(hasSession);
   const ordersQuery = useGatewayOrdersQuery(hasSession);
   const channelsQuery = useGatewayPaymentChannelsQuery(hasSession);
+  const {
+    isRunning: isRouteRunning,
+    startProxyServer,
+    stopWithRestore,
+    isStarting,
+    isStopping,
+  } = useProxyStatus();
 
   const handleLogin = async (credentials: GatewayAuthCredentials) => {
     try {
@@ -126,7 +134,7 @@ export function GatewayApp({
     }
   };
 
-  const handleApplyToolConfig = async () => {
+  const handleApplyToolConfig = async (targetApp: AppId) => {
     if (!selectedKey?.secret) {
       toast.warning("Key 待创建或不可用");
       return;
@@ -134,7 +142,7 @@ export function GatewayApp({
     try {
       setIsApplyingToolConfig(true);
       await applyGatewayToolConfig({
-        appId: activeApp,
+        appId: targetApp,
         apiKey: selectedKey.secret,
         models: modelsQuery.data ?? [],
       });
@@ -143,6 +151,18 @@ export function GatewayApp({
       toast.error(extractErrorMessage(error) || "写入本地工具配置失败");
     } finally {
       setIsApplyingToolConfig(false);
+    }
+  };
+
+  const handleToggleRoutePower = async () => {
+    try {
+      if (isRouteRunning) {
+        await stopWithRestore();
+      } else {
+        await startProxyServer();
+      }
+    } catch (error) {
+      console.error("[GatewayApp] Toggle route power failed:", error);
     }
   };
 
@@ -198,11 +218,14 @@ export function GatewayApp({
       channels={channelsQuery.data ?? []}
       paymentsLoading={channelsQuery.isLoading}
       isApplyingToolConfig={isApplyingToolConfig}
+      isRouteRunning={isRouteRunning}
+      isRoutePowerPending={isStarting || isStopping}
       isCreatingKey={createKeyMutation.isPending}
       isUpdatingKey={updateKeyMutation.isPending}
       isCreatingOrder={createOrderMutation.isPending}
       onSwitchApp={onSwitchApp}
-      onApplyToolConfig={() => void handleApplyToolConfig()}
+      onApplyToolConfig={(appId) => void handleApplyToolConfig(appId)}
+      onToggleRoutePower={() => void handleToggleRoutePower()}
       onCreateKey={(input) => void handleCreateKey(input)}
       onSelectKey={(keyId) => void selectKeyMutation.mutateAsync(keyId)}
       onUpdateKeyGroup={(keyId, groupId) =>

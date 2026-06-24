@@ -62,14 +62,14 @@ describe("GatewayApiClient", () => {
     );
   });
 
-  it("creates API keys with the selected official group id", async () => {
+  it("creates API keys with the selected numeric official group id", async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({ data: { id: "key-1", name: "Desktop Client" } }),
       )
       .mockResolvedValueOnce(jsonResponse({ data: [] }));
 
-    await client.createKey({ name: "Desktop Client", groupId: "group-openai" });
+    await client.createKey({ name: "Desktop Client", groupId: "123" });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -78,22 +78,22 @@ describe("GatewayApiClient", () => {
         method: "POST",
         body: JSON.stringify({
           name: "Desktop Client",
-          group_id: "group-openai",
+          group_id: 123,
         }),
       }),
     );
   });
 
-  it("updates existing API key groups through the official key update endpoint", async () => {
+  it("updates existing API key groups through the official key update endpoint with numeric group ids", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: { id: "key-1" } }));
 
-    await client.updateKey("key-1", { groupId: "group-claude" });
+    await client.updateKey("key-1", { groupId: "456" });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://sub.tohoqing.com/api/v1/keys/key-1",
       expect.objectContaining({
         method: "PUT",
-        body: JSON.stringify({ group_id: "group-claude" }),
+        body: JSON.stringify({ group_id: 456 }),
       }),
     );
   });

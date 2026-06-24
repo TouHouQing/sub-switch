@@ -55,11 +55,14 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     channels: [],
     paymentsLoading: false,
     isApplyingToolConfig: false,
+    isRouteRunning: false,
+    isRoutePowerPending: false,
     isCreatingKey: false,
     isUpdatingKey: false,
     isCreatingOrder: false,
     onSwitchApp: vi.fn(),
     onApplyToolConfig: vi.fn(),
+    onToggleRoutePower: vi.fn(),
     onCreateKey: vi.fn(),
     onSelectKey: vi.fn(),
     onUpdateKeyGroup: vi.fn(),
@@ -84,10 +87,31 @@ describe("GatewayDashboard", () => {
     expect(screen.queryByText(/api\/v1/)).not.toBeInTheDocument();
   });
 
-  it("renders the ManyTokens-style overview header from the official site", () => {
+  it("uses the dashboard power button as the route master switch", () => {
+    const handlePower = vi.fn();
+    const handleApply = vi.fn();
+
     render(
       <GatewayDashboard
         {...baseProps({
+          onToggleRoutePower: handlePower,
+          onApplyToolConfig: handleApply,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "启动路由" }));
+
+    expect(handlePower).toHaveBeenCalledTimes(1);
+    expect(handleApply).not.toHaveBeenCalled();
+    expect(screen.getByText("路由总开关")).toBeInTheDocument();
+  });
+
+  it("renders the THQ route console overview", () => {
+    render(
+      <GatewayDashboard
+        {...baseProps({
+          isRouteRunning: true,
           keySelection: {
             status: "ready",
             selectedKey: {
@@ -110,15 +134,44 @@ describe("GatewayDashboard", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "ManyTokens" }),
+      screen.getByRole("heading", { name: "THQ 路由控制台" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("来ManyTokens使用更有性价比的产品"),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("使用中").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("运行中").length).toBeGreaterThan(0);
     expect(screen.getByText("账户余额")).toBeInTheDocument();
     expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
     expect(screen.getAllByText("ac-switch").length).toBeGreaterThan(0);
+  });
+
+  it("shows tool routes according to the main-page visibility setting", () => {
+    render(
+      <GatewayDashboard
+        {...baseProps({
+          visibleApps: {
+            claude: true,
+            "claude-desktop": false,
+            codex: false,
+            gemini: false,
+            opencode: false,
+            openclaw: false,
+            hermes: true,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("工具路由")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "配置到 Claude Code" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "配置到 Hermes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "配置到 Codex" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "配置到 Gemini" }),
+    ).not.toBeInTheDocument();
   });
 
   it("disables tool configuration without a selected key secret", () => {

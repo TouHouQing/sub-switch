@@ -174,6 +174,21 @@ const buildPaymentOrderPayload = (
   return payload;
 };
 
+const parseGatewayGroupId = (
+  groupId: string | undefined,
+): number | undefined => {
+  const trimmed = groupId?.trim();
+  if (!trimmed) return undefined;
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error("Gateway group id must be numeric");
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error("Gateway group id is outside the supported range");
+  }
+  return parsed;
+};
+
 const buildCreateKeyPayload = (
   input?: string | GatewayCreateKeyInput,
 ): Record<string, unknown> => {
@@ -181,7 +196,8 @@ const buildCreateKeyPayload = (
   const payload: Record<string, unknown> = {
     name: source.name?.trim() || "Desktop Client",
   };
-  if (source.groupId?.trim()) payload.group_id = source.groupId.trim();
+  const groupId = parseGatewayGroupId(source.groupId);
+  if (groupId !== undefined) payload.group_id = groupId;
   return payload;
 };
 
@@ -190,7 +206,8 @@ const buildUpdateKeyPayload = (
 ): Record<string, unknown> => {
   const payload: Record<string, unknown> = {};
   if (input.name !== undefined) payload.name = input.name.trim();
-  if (input.groupId !== undefined) payload.group_id = input.groupId.trim();
+  const groupId = parseGatewayGroupId(input.groupId);
+  if (groupId !== undefined) payload.group_id = groupId;
   if (input.status !== undefined) payload.status = input.status;
   return payload;
 };
