@@ -14,8 +14,10 @@ GEMINI.md
 /.codex
 /.gemini
 /.cc-switch
+/.serena
 /.idea
 /.vscode
+/release-assets/
 vitest-report.json
 nul
 

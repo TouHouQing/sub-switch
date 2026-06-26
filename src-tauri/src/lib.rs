@@ -585,6 +585,24 @@ pub fn run() {
                         }
                     }
 
+                    match crate::codex_history_migration::maybe_migrate_codex_state_rollout_paths() {
+                        Ok(outcome) => {
+                            if let Some(reason) = outcome.skipped_reason {
+                                log::debug!(
+                                    "Codex state rollout path migration skipped: {reason}"
+                                );
+                            } else if outcome.migrated_state_rows > 0 {
+                                log::info!(
+                                    "Codex state rollout path migration completed: state_rows={}",
+                                    outcome.migrated_state_rows
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Codex state rollout path migration failed: {e}");
+                        }
+                    }
+
                     match crate::codex_history_migration::maybe_migrate_codex_provider_template_bucket(
                         &db_for_codex_history_migration,
                     ) {

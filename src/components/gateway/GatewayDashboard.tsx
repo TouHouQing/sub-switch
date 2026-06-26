@@ -23,7 +23,6 @@ import { GatewayUsageRecords } from "@/components/gateway/GatewayUsageRecords";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatGatewayNumber } from "@/components/gateway/format";
-import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
 import type { AppId } from "@/lib/api";
 import type { VisibleApps } from "@/types";
 import type {
@@ -76,6 +75,7 @@ export interface GatewayDashboardProps {
   onOpenExternal: (url: string) => void;
   onLogout: () => void;
   onOpenAdvancedProviders: () => void;
+  onEditToolProvider: (appId: AppId) => void;
 }
 
 export function GatewayDashboard({
@@ -113,6 +113,7 @@ export function GatewayDashboard({
   onOpenExternal,
   onLogout,
   onOpenAdvancedProviders,
+  onEditToolProvider,
 }: GatewayDashboardProps) {
   const selectedKey = keySelection?.selectedKey ?? null;
   const currentGroupName =
@@ -156,9 +157,6 @@ export function GatewayDashboard({
                   >
                     {isRouteRunning ? "运行中" : "暂停中"}
                   </Badge>
-                  <Badge className="border-transparent bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300">
-                    固定 sub.tohoqing.com
-                  </Badge>
                   <Badge
                     variant="outline"
                     className="border-slate-200 bg-white text-slate-800 dark:border-border-default dark:bg-card dark:text-foreground"
@@ -175,16 +173,9 @@ export function GatewayDashboard({
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm text-slate-500 dark:text-muted-foreground">
-                  打开软件后默认使用 THQ 作为路由目标。启动会开启路由服务，暂停会恢复启用前的配置。
+                  打开软件后默认使用 THQ
+                  作为路由目标。启动会开启路由服务，暂停会恢复启用前的配置。
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-md bg-muted px-2.5 py-1 text-muted-foreground">
-                    当前查看：{activeApp}
-                  </span>
-                  <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 text-muted-foreground">
-                    Model Base：{GATEWAY_MODEL_BASE_URL}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -345,6 +336,7 @@ export function GatewayDashboard({
           isApplying={isApplyingToolConfig}
           onSwitchApp={onSwitchApp}
           onApplyToolConfig={onApplyToolConfig}
+          onEditToolProvider={onEditToolProvider}
         />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_1fr]">
@@ -384,11 +376,7 @@ export function GatewayDashboard({
             />
           </div>
           <div id="gateway-orders-panel">
-            <GatewayOrdersPanel
-              orders={orders}
-              loading={ordersLoading}
-              onOpenExternal={onOpenExternal}
-            />
+            <GatewayOrdersPanel orders={orders} loading={ordersLoading} />
           </div>
         </div>
       </div>

@@ -3,6 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 import { GatewayAuthPage } from "@/components/gateway/GatewayAuthPage";
 
 describe("GatewayAuthPage", () => {
+  it("does not describe the gateway as fixed to sub.tohoqing.com", () => {
+    render(
+      <GatewayAuthPage
+        isLoading={false}
+        onLogin={vi.fn()}
+        onRegister={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText(/固定.*sub\.tohoqing\.com/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Fixed to sub\.tohoqing\.com/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/固定中转站/)).not.toBeInTheDocument();
+  });
+
   it("submits login credentials", async () => {
     const handleLogin = vi.fn().mockResolvedValue(undefined);
 

@@ -143,6 +143,7 @@ interface ClaudeFormFieldsProps {
   // Local proxy User-Agent override
   customUserAgent: string;
   onCustomUserAgentChange: (value: string) => void;
+  hideProviderConnectionFields?: boolean;
 }
 
 export function ClaudeFormFields({
@@ -197,6 +198,7 @@ export function ClaudeFormFields({
   onFullUrlChange,
   customUserAgent,
   onCustomUserAgentChange,
+  hideProviderConnectionFields = false,
 }: ClaudeFormFieldsProps) {
   const { t } = useTranslation();
   const hasAnyAdvancedValue = !!(
@@ -560,7 +562,7 @@ export function ClaudeFormFields({
   return (
     <>
       {/* GitHub Copilot OAuth 认证 */}
-      {isCopilotPreset && (
+      {isCopilotPreset && !hideProviderConnectionFields && (
         <CopilotAuthSection
           selectedAccountId={selectedGitHubAccountId}
           onAccountSelect={onGitHubAccountSelect}
@@ -568,7 +570,7 @@ export function ClaudeFormFields({
       )}
 
       {/* Codex OAuth 认证 (ChatGPT Plus/Pro) */}
-      {isCodexOauthPreset && (
+      {isCodexOauthPreset && !hideProviderConnectionFields && (
         <CodexOAuthSection
           selectedAccountId={selectedCodexAccountId}
           onAccountSelect={onCodexAccountSelect}
@@ -578,7 +580,7 @@ export function ClaudeFormFields({
       )}
 
       {/* API Key 输入框（非 OAuth 预设时显示） */}
-      {shouldShowApiKey && !usesOAuth && (
+      {shouldShowApiKey && !usesOAuth && !hideProviderConnectionFields && (
         <ApiKeySection
           value={apiKey}
           onChange={onApiKeyChange}
@@ -591,7 +593,7 @@ export function ClaudeFormFields({
       )}
 
       {/* 模板变量输入 */}
-      {templateValueEntries.length > 0 && (
+      {templateValueEntries.length > 0 && !hideProviderConnectionFields && (
         <div className="space-y-3">
           <FormLabel>
             {t("providerForm.parameterConfig", {
@@ -626,7 +628,7 @@ export function ClaudeFormFields({
       )}
 
       {/* Base URL 输入框 */}
-      {shouldShowSpeedTest && (
+      {shouldShowSpeedTest && !hideProviderConnectionFields && (
         <EndpointField
           id="baseUrl"
           label={t("providerForm.apiEndpoint")}
@@ -658,20 +660,23 @@ export function ClaudeFormFields({
       )}
 
       {/* 端点测速弹窗 */}
-      {shouldShowSpeedTest && showEndpointTools && isEndpointModalOpen && (
-        <EndpointSpeedTest
-          appId="claude"
-          providerId={providerId}
-          value={baseUrl}
-          onChange={onBaseUrlChange}
-          initialEndpoints={speedTestEndpoints}
-          visible={isEndpointModalOpen}
-          onClose={() => onEndpointModalToggle(false)}
-          autoSelect={autoSelect}
-          onAutoSelectChange={onAutoSelectChange}
-          onCustomEndpointsChange={onCustomEndpointsChange}
-        />
-      )}
+      {shouldShowSpeedTest &&
+        !hideProviderConnectionFields &&
+        showEndpointTools &&
+        isEndpointModalOpen && (
+          <EndpointSpeedTest
+            appId="claude"
+            providerId={providerId}
+            value={baseUrl}
+            onChange={onBaseUrlChange}
+            initialEndpoints={speedTestEndpoints}
+            visible={isEndpointModalOpen}
+            onClose={() => onEndpointModalToggle(false)}
+            autoSelect={autoSelect}
+            onAutoSelectChange={onAutoSelectChange}
+            onCustomEndpointsChange={onCustomEndpointsChange}
+          />
+        )}
 
       {shouldShowModelSelector && (
         <Collapsible open={advancedExpanded} onOpenChange={setAdvancedExpanded}>
@@ -738,38 +743,40 @@ export function ClaudeFormFields({
             )}
 
             {/* 认证字段选择器 */}
-            <div className="space-y-2">
-              <FormLabel>
-                {t("providerForm.authField", { defaultValue: "认证字段" })}
-              </FormLabel>
-              <Select
-                value={apiKeyField}
-                onValueChange={(v) =>
-                  onApiKeyFieldChange(v as ClaudeApiKeyField)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ANTHROPIC_AUTH_TOKEN">
-                    {t("providerForm.authFieldAuthToken", {
-                      defaultValue: "ANTHROPIC_AUTH_TOKEN（默认）",
-                    })}
-                  </SelectItem>
-                  <SelectItem value="ANTHROPIC_API_KEY">
-                    {t("providerForm.authFieldApiKey", {
-                      defaultValue: "ANTHROPIC_API_KEY",
-                    })}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {t("providerForm.authFieldHint", {
-                  defaultValue: "选择写入配置的认证环境变量名",
-                })}
-              </p>
-            </div>
+            {!hideProviderConnectionFields && (
+              <div className="space-y-2">
+                <FormLabel>
+                  {t("providerForm.authField", { defaultValue: "认证字段" })}
+                </FormLabel>
+                <Select
+                  value={apiKeyField}
+                  onValueChange={(v) =>
+                    onApiKeyFieldChange(v as ClaudeApiKeyField)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANTHROPIC_AUTH_TOKEN">
+                      {t("providerForm.authFieldAuthToken", {
+                        defaultValue: "ANTHROPIC_AUTH_TOKEN（默认）",
+                      })}
+                    </SelectItem>
+                    <SelectItem value="ANTHROPIC_API_KEY">
+                      {t("providerForm.authFieldApiKey", {
+                        defaultValue: "ANTHROPIC_API_KEY",
+                      })}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t("providerForm.authFieldHint", {
+                    defaultValue: "选择写入配置的认证环境变量名",
+                  })}
+                </p>
+              </div>
+            )}
 
             {/* 模型映射 */}
             <div className="space-y-1 pt-2 border-t">

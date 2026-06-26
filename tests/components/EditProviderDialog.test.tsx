@@ -43,6 +43,7 @@ vi.mock("@/components/providers/forms/ProviderForm", () => ({
     initialData,
     onSubmit,
     isProxyTakeover,
+    variant,
   }: {
     initialData: {
       name?: string;
@@ -63,6 +64,7 @@ vi.mock("@/components/providers/forms/ProviderForm", () => ({
       iconColor?: string;
     }) => void;
     isProxyTakeover?: boolean;
+    variant?: "default" | "tool-route-advanced";
   }) => (
     <form
       id="provider-form"
@@ -84,6 +86,9 @@ vi.mock("@/components/providers/forms/ProviderForm", () => ({
       </output>
       <output data-testid="is-proxy-takeover">
         {isProxyTakeover ? "true" : "false"}
+      </output>
+      <output data-testid="provider-form-variant">
+        {variant ?? "default"}
       </output>
     </form>
   ),
@@ -198,6 +203,47 @@ describe("EditProviderDialog", () => {
     });
 
     expect(apiMocks.getLiveProviderSettings).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(screen.getByTestId("settings-config").textContent ?? "{}"),
+    ).toEqual(provider.settingsConfig);
+  });
+
+  it("工具路由编辑模式沿用供应商配置但传入受限表单模式", async () => {
+    const provider: Provider = {
+      id: "thq-gateway",
+      name: "THQ Gateway",
+      category: "aggregator",
+      settingsConfig: {
+        auth: {
+          OPENAI_API_KEY: "sk-thq",
+        },
+        config:
+          'model_provider = "thq-gateway"\n[model_providers.thq-gateway]\nbase_url = "https://sub.tohoqing.com/v1"\n',
+      },
+      websiteUrl: "https://sub.tohoqing.com",
+      icon: "openai",
+    };
+
+    apiMocks.getCurrent.mockResolvedValue(provider.id);
+    apiMocks.getLiveProviderSettings.mockResolvedValue(provider.settingsConfig);
+
+    render(
+      <EditProviderDialog
+        open
+        provider={provider}
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+        appId="codex"
+        variant="tool-route-advanced"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("provider-form-variant").textContent).toBe(
+        "tool-route-advanced",
+      );
+    });
+
     expect(
       JSON.parse(screen.getByTestId("settings-config").textContent ?? "{}"),
     ).toEqual(provider.settingsConfig);

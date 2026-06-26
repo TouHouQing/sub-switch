@@ -19,7 +19,10 @@ interface GatewayUsageRecordsProps {
   loading: boolean;
 }
 
-export function GatewayUsageRecords({ records, loading }: GatewayUsageRecordsProps) {
+export function GatewayUsageRecords({
+  records,
+  loading,
+}: GatewayUsageRecordsProps) {
   return (
     <section className="rounded-lg border border-border-default bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -44,7 +47,6 @@ export function GatewayUsageRecords({ records, loading }: GatewayUsageRecordsPro
               <TableHead className="px-2">模型</TableHead>
               <TableHead className="px-2 text-right">Token</TableHead>
               <TableHead className="px-2 text-right">用量</TableHead>
-              <TableHead className="px-2">状态</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -61,9 +63,6 @@ export function GatewayUsageRecords({ records, loading }: GatewayUsageRecordsPro
                 </TableCell>
                 <TableCell className="px-2 text-right text-xs tabular-nums">
                   {formatGatewayNumber(record.cost)}
-                </TableCell>
-                <TableCell className="px-2 text-xs">
-                  <Badge variant="secondary">{record.status || "--"}</Badge>
                 </TableCell>
               </TableRow>
             ))}

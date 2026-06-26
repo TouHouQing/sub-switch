@@ -91,6 +91,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { GatewayApp } from "@/components/gateway/GatewayApp";
+import { GATEWAY_PROVIDER_ID } from "@/lib/gateway/constants";
 
 type View =
   | "gateway"
@@ -228,6 +229,12 @@ function App() {
   }, [sharedFeatureApp, currentView]);
 
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
+  const [editingProviderApp, setEditingProviderApp] = useState<AppId | null>(
+    null,
+  );
+  const [editingProviderVariant, setEditingProviderVariant] = useState<
+    "default" | "tool-route-advanced"
+  >("default");
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     provider: Provider;
@@ -623,8 +630,53 @@ function App() {
     provider: Provider;
     originalId?: string;
   }) => {
+    if (editingProviderApp && editingProviderApp !== activeApp) {
+      await providersApi.update(provider, editingProviderApp, originalId);
+      await queryClient.invalidateQueries({
+        queryKey: ["providers", editingProviderApp],
+      });
+      try {
+        await providersApi.updateTrayMenu();
+      } catch (trayError) {
+        console.error(
+          "Failed to update tray menu after updating provider",
+          trayError,
+        );
+      }
+      toast.success(
+        t("notifications.updateSuccess", {
+          defaultValue: "供应商更新成功",
+        }),
+        { closeButton: true },
+      );
+      setEditingProvider(null);
+      setEditingProviderApp(null);
+      setEditingProviderVariant("default");
+      return;
+    }
+
     await updateProvider(provider, originalId);
     setEditingProvider(null);
+    setEditingProviderApp(null);
+    setEditingProviderVariant("default");
+  };
+
+  const handleOpenToolProviderEditor = async (appId: AppId) => {
+    try {
+      const providerMap = await providersApi.getAll(appId);
+      const provider = providerMap[GATEWAY_PROVIDER_ID];
+      if (!provider) {
+        toast.warning("请先配置到该工具后再编辑高级选项");
+        return;
+      }
+
+      setEditingProvider(provider);
+      setEditingProviderApp(appId);
+      setEditingProviderVariant("tool-route-advanced");
+      setActiveApp(appId);
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || "打开工具配置失败");
+    }
   };
 
   const handleConfirmAction = async () => {
@@ -870,6 +922,9 @@ function App() {
               visibleApps={visibleApps}
               onSwitchApp={setActiveApp}
               onOpenAdvancedProviders={() => setCurrentView("providers")}
+              onEditToolProvider={(appId) =>
+                void handleOpenToolProviderEditor(appId)
+              }
             />
           );
         case "settings":
@@ -919,9 +974,7 @@ function App() {
             />
           );
         case "agents":
-          return (
-            <AgentsPanel onOpenChange={() => setCurrentView("gateway")} />
-          );
+          return <AgentsPanel onOpenChange={() => setCurrentView("gateway")} />;
         case "universal":
           return (
             <div className="px-6 pt-4">
@@ -970,6 +1023,8 @@ function App() {
                       onSwitch={switchProvider}
                       onEdit={(provider) => {
                         setEditingProvider(provider);
+                        setEditingProviderApp(activeApp);
+                        setEditingProviderVariant("default");
                       }}
                       onDelete={(provider) =>
                         setConfirmAction({ provider, action: "delete" })
@@ -1138,9 +1193,7 @@ function App() {
                   size="icon"
                   onClick={() =>
                     setCurrentView(
-                      currentView === "skillsDiscovery"
-                        ? "skills"
-                        : "gateway",
+                      currentView === "skillsDiscovery" ? "skills" : "gateway",
                     )
                   }
                   className="mr-2 rounded-lg"
@@ -1563,11 +1616,18 @@ function App() {
         onOpenChange={(open) => {
           if (!open) {
             setEditingProvider(null);
+            setEditingProviderApp(null);
+            setEditingProviderVariant("default");
           }
         }}
         onSubmit={handleEditProvider}
-        appId={activeApp}
-        isProxyTakeover={isCurrentAppTakeoverActive}
+        appId={editingProviderApp ?? activeApp}
+        isProxyTakeover={
+          editingProviderApp
+            ? Boolean(takeoverStatus?.[editingProviderApp])
+            : isCurrentAppTakeoverActive
+        }
+        variant={editingProviderVariant}
       />
 
       {effectiveUsageProvider && (

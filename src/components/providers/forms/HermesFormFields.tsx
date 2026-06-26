@@ -68,6 +68,7 @@ interface HermesFormFieldsProps {
   onModelsChange: (models: HermesModel[]) => void;
   rateLimitDelay: number | undefined;
   onRateLimitDelayChange: (delay: number | undefined) => void;
+  hideProviderConnectionFields?: boolean;
 }
 
 type BaseUrlErrorCode = "empty" | "invalid" | "scheme";
@@ -155,6 +156,7 @@ export function HermesFormFields({
   onModelsChange,
   rateLimitDelay,
   onRateLimitDelayChange,
+  hideProviderConnectionFields = false,
 }: HermesFormFieldsProps) {
   const { t } = useTranslation();
   const [expandedModels, setExpandedModels] = useState<Record<number, boolean>>(
@@ -299,43 +301,47 @@ export function HermesFormFields({
         </p>
       </div>
 
-      <div className="space-y-2">
-        <FormLabel htmlFor="hermes-baseurl">
-          {t("hermes.form.baseUrl", { defaultValue: "API 端点" })}
-        </FormLabel>
-        <Input
-          id="hermes-baseurl"
-          value={baseUrl}
-          onChange={(e) => onBaseUrlChange(e.target.value)}
-          onBlur={() => setBaseUrlTouched(true)}
-          placeholder="https://api.example.com/v1"
-          aria-invalid={showBaseUrlError}
-          className={
-            showBaseUrlError
-              ? "border-destructive focus-visible:ring-destructive"
-              : undefined
-          }
-        />
-        {showBaseUrlError ? (
-          <p className="text-xs text-destructive">{baseUrlErrorMessage}</p>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {t("hermes.form.baseUrlHint", {
-              defaultValue: "供应商的 API 端点地址。",
-            })}
-          </p>
-        )}
-      </div>
+      {!hideProviderConnectionFields && (
+        <div className="space-y-2">
+          <FormLabel htmlFor="hermes-baseurl">
+            {t("hermes.form.baseUrl", { defaultValue: "API 端点" })}
+          </FormLabel>
+          <Input
+            id="hermes-baseurl"
+            value={baseUrl}
+            onChange={(e) => onBaseUrlChange(e.target.value)}
+            onBlur={() => setBaseUrlTouched(true)}
+            placeholder="https://api.example.com/v1"
+            aria-invalid={showBaseUrlError}
+            className={
+              showBaseUrlError
+                ? "border-destructive focus-visible:ring-destructive"
+                : undefined
+            }
+          />
+          {showBaseUrlError ? (
+            <p className="text-xs text-destructive">{baseUrlErrorMessage}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {t("hermes.form.baseUrlHint", {
+                defaultValue: "供应商的 API 端点地址。",
+              })}
+            </p>
+          )}
+        </div>
+      )}
 
-      <ApiKeySection
-        value={apiKey}
-        onChange={onApiKeyChange}
-        category={category}
-        shouldShowLink={shouldShowApiKeyLink}
-        websiteUrl={websiteUrl}
-        isPartner={isPartner}
-        partnerPromotionKey={partnerPromotionKey}
-      />
+      {!hideProviderConnectionFields && (
+        <ApiKeySection
+          value={apiKey}
+          onChange={onApiKeyChange}
+          category={category}
+          shouldShowLink={shouldShowApiKeyLink}
+          websiteUrl={websiteUrl}
+          isPartner={isPartner}
+          partnerPromotionKey={partnerPromotionKey}
+        />
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

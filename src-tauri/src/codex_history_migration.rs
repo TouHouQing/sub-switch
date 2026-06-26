@@ -92,6 +92,14 @@ pub struct CodexProviderTemplateBucketMigrationOutcome {
     pub skipped_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CodexStateRolloutPathMigrationOutcome {
+    pub migrated_state_rows: usize,
+    pub skipped_reason: Option<String>,
+}
+
+type CodexStateRolloutPathMigrationResult = Result<CodexStateRolloutPathMigrationOutcome, AppError>;
+
 pub fn maybe_migrate_codex_third_party_history_provider_bucket(
     db: &Database,
 ) -> Result<CodexHistoryProviderBucketMigrationOutcome, AppError> {
@@ -165,6 +173,29 @@ pub fn maybe_migrate_codex_provider_template_bucket(
     })?;
 
     Ok(outcome)
+}
+
+pub fn maybe_migrate_codex_state_rollout_paths() -> CodexStateRolloutPathMigrationResult {
+    if !cfg!(target_os = "windows") {
+        return Ok(CodexStateRolloutPathMigrationOutcome {
+            skipped_reason: Some("not_windows".to_string()),
+            ..Default::default()
+        });
+    }
+
+    let codex_dir = get_codex_config_dir();
+    let config_text = read_codex_config_text().unwrap_or_default();
+    let backup_root = migration_backup_root();
+    let mut migrated_state_rows = 0usize;
+    for db_path in codex_state_db_paths(&codex_dir, &config_text) {
+        migrated_state_rows +=
+            migrate_codex_state_db_rollout_paths(&db_path, &codex_dir, &backup_root)?;
+    }
+
+    Ok(CodexStateRolloutPathMigrationOutcome {
+        migrated_state_rows,
+        skipped_reason: None,
+    })
 }
 
 fn migrate_codex_provider_templates_to_custom(
@@ -700,6 +731,100 @@ fn migrate_codex_state_db_provider_bucket(
     tx.commit()
         .map_err(|e| AppError::Database(format!("提交 Codex state DB 迁移事务失败: {e}")))?;
     Ok(changed)
+}
+
+fn migrate_codex_state_db_rollout_paths(
+    db_path: &Path,
+    codex_dir: &Path,
+    backup_root: &Path,
+) -> Result<usize, AppError> {
+    if !db_path.exists() {
+        return Ok(0);
+    }
+
+    let mut conn = Connection::open(db_path)
+        .map_err(|e| AppError::Database(format!("Failed to open Codex state DB: {e}")))?;
+    conn.busy_timeout(Duration::from_secs(5)).map_err(|e| {
+        AppError::Database(format!("Failed to set Codex state DB busy timeout: {e}"))
+    })?;
+
+    if !Database::table_exists(&conn, "threads")?
+        || !Database::has_column(&conn, "threads", "rollout_path")?
+    {
+        return Ok(0);
+    }
+
+    let candidates = collect_rollout_path_updates(&conn)?;
+    if candidates.is_empty() {
+        return Ok(0);
+    }
+
+    backup_codex_state_db(db_path, codex_dir, backup_root, &conn)?;
+
+    let tx = conn.transaction().map_err(|e| {
+        AppError::Database(format!("Failed to start Codex rollout path migration: {e}"))
+    })?;
+    let mut changed = 0usize;
+    {
+        let mut stmt = tx
+            .prepare("UPDATE threads SET rollout_path = ?1 WHERE id = ?2")
+            .map_err(|e| {
+                AppError::Database(format!("Failed to prepare Codex rollout path update: {e}"))
+            })?;
+        for (thread_id, canonical_path) in &candidates {
+            changed += stmt.execute((canonical_path, thread_id)).map_err(|e| {
+                AppError::Database(format!("Failed to update Codex rollout path: {e}"))
+            })?;
+        }
+    }
+    tx.commit().map_err(|e| {
+        AppError::Database(format!(
+            "Failed to commit Codex rollout path migration: {e}"
+        ))
+    })?;
+    Ok(changed)
+}
+
+fn collect_rollout_path_updates(conn: &Connection) -> Result<Vec<(String, String)>, AppError> {
+    let mut stmt = conn
+        .prepare("SELECT id, rollout_path FROM threads")
+        .map_err(|e| AppError::Database(format!("Failed to read Codex rollout paths: {e}")))?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| AppError::Database(format!("Failed to query Codex rollout paths: {e}")))?;
+
+    let mut updates = Vec::new();
+    for row in rows {
+        let (thread_id, rollout_path) = row.map_err(|e| {
+            AppError::Database(format!("Failed to read Codex rollout path row: {e}"))
+        })?;
+        let Some(canonical_path) = canonical_rollout_path_for_state_db(&rollout_path) else {
+            continue;
+        };
+        if canonical_path != rollout_path {
+            updates.push((thread_id, canonical_path));
+        }
+    }
+    Ok(updates)
+}
+
+fn canonical_rollout_path_for_state_db(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let path = Path::new(trimmed);
+    if !path.exists() {
+        return None;
+    }
+
+    path.canonicalize()
+        .ok()
+        .map(|path| path.to_string_lossy().to_string())
+        .filter(|canonical| !canonical.is_empty())
 }
 
 fn placeholders(count: usize) -> String {
@@ -1255,6 +1380,66 @@ base_url = "https://proxy.example/v1"
             )
             .expect("count backed up source providers");
         assert_eq!(backed_up_source_count, 2);
+    }
+
+    #[test]
+    fn updates_codex_state_db_rollout_paths_to_canonical_paths() {
+        let dir = tempdir().expect("tempdir");
+        let codex_dir = dir.path().join(".codex");
+        let session_dir = codex_dir.join("sessions/2026/06/26");
+        fs::create_dir_all(&session_dir).expect("create session dir");
+        let session_path = session_dir.join("rollout-test.jsonl");
+        fs::write(&session_path, "{}\n").expect("write session");
+
+        let stale_path = session_path.to_string_lossy().to_string();
+        let canonical_path = session_path
+            .canonicalize()
+            .expect("canonicalize session")
+            .to_string_lossy()
+            .to_string();
+
+        let db_path = codex_dir.join(CODEX_STATE_DB_FILENAME);
+        let conn = Connection::open(&db_path).expect("open db");
+        conn.execute_batch(
+            "CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                rollout_path TEXT NOT NULL,
+                model_provider TEXT NOT NULL
+            );",
+        )
+        .expect("create threads");
+        conn.execute(
+            "INSERT INTO threads (id, rollout_path, model_provider) VALUES (?1, ?2, 'custom')",
+            ("thread-id", stale_path.as_str()),
+        )
+        .expect("seed thread");
+        drop(conn);
+
+        let backup_root = dir.path().join("backup");
+        let changed = migrate_codex_state_db_rollout_paths(&db_path, &codex_dir, &backup_root)
+            .expect("migrate rollout paths");
+
+        assert_eq!(changed, usize::from(stale_path != canonical_path));
+
+        let conn = Connection::open(&db_path).expect("reopen db");
+        let saved: String = conn
+            .query_row(
+                "SELECT rollout_path FROM threads WHERE id = 'thread-id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read rollout path");
+        assert_eq!(saved, canonical_path);
+
+        if stale_path != canonical_path {
+            assert!(
+                backup_root
+                    .join("state")
+                    .join(CODEX_STATE_DB_FILENAME)
+                    .exists(),
+                "changed state DB should be backed up before updating rollout_path"
+            );
+        }
     }
 
     #[test]

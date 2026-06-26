@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AppId } from "@/lib/api";
+import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
 import { buildGatewayProviderForApp } from "@/lib/gateway/toolConfig";
 
@@ -42,5 +43,31 @@ describe("THQ gateway tool config", () => {
     expect(String(provider.settingsConfig.config)).toContain(
       'wire_api = "responses"',
     );
+  });
+
+  it("uses Claude Desktop proxy mode with safe role routes for gateway models", () => {
+    const provider = buildGatewayProviderForApp("claude-desktop", {
+      apiKey: "sk-thq",
+      models: [{ id: "gpt-5.5", name: "GPT 5.5", enabled: true }],
+    });
+
+    expect(provider.meta).toMatchObject({
+      apiFormat: "openai_responses",
+      claudeDesktopMode: "proxy",
+      claudeDesktopModelRoutes: {
+        [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet]: {
+          model: "gpt-5.5",
+          labelOverride: "GPT 5.5",
+        },
+        [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.opus]: {
+          model: "gpt-5.5",
+          labelOverride: "GPT 5.5",
+        },
+        [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.haiku]: {
+          model: "gpt-5.5",
+          labelOverride: "GPT 5.5",
+        },
+      },
+    });
   });
 });

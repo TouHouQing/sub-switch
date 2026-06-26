@@ -11,9 +11,20 @@ vi.mock("@/lib/api/providers", () => ({
   },
 }));
 
+vi.mock("@/components/JsonEditor", () => ({
+  default: ({ value, language }: { value: string; language?: string }) => (
+    <textarea
+      aria-label={`json-editor-${language ?? "plain"}`}
+      readOnly
+      value={value}
+    />
+  ),
+}));
+
 function renderForm(
   initialData: ComponentProps<typeof ClaudeDesktopProviderForm>["initialData"],
   onSubmit = vi.fn(),
+  props: Partial<ComponentProps<typeof ClaudeDesktopProviderForm>> = {},
 ) {
   const queryClient = createTestQueryClient();
   const view = render(
@@ -23,6 +34,7 @@ function renderForm(
         onSubmit={onSubmit}
         onCancel={vi.fn()}
         initialData={initialData}
+        {...props}
       />
     </QueryClientProvider>,
   );
@@ -176,9 +188,9 @@ describe("ClaudeDesktopProviderForm", () => {
       "claude-opus-4-8": { model: "upstream-old" },
       "claude-haiku-4-5": { model: "upstream-old" },
     });
-    expect(
-      Object.keys(submitted.meta.claudeDesktopModelRoutes).sort(),
-    ).toEqual(["claude-haiku-4-5", "claude-opus-4-8", "claude-sonnet-4-6"]);
+    expect(Object.keys(submitted.meta.claudeDesktopModelRoutes).sort()).toEqual(
+      ["claude-haiku-4-5", "claude-opus-4-8", "claude-sonnet-4-6"],
+    );
   });
 
   it("回填空档时继承 Sonnet 的 1M 声明", async () => {
@@ -251,6 +263,66 @@ describe("ClaudeDesktopProviderForm", () => {
     expect(submitted.meta.claudeDesktopModelRoutes).toMatchObject({
       "claude-sonnet-4-6": {
         model: "claude-sonnet-4-6",
+      },
+    });
+  });
+
+  it("工具路由受限模式隐藏供应商字段并保留高级编辑能力", async () => {
+    const onSubmit = vi.fn();
+    renderForm(
+      {
+        name: "THQ Gateway",
+        websiteUrl: "https://sub.tohoqing.com",
+        category: "aggregator",
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: "https://sub.tohoqing.com/v1",
+            ANTHROPIC_AUTH_TOKEN: "sk-thq",
+          },
+        },
+        icon: "openai",
+        iconColor: "#0EA5E9",
+        meta: {
+          claudeDesktopMode: "proxy",
+          apiFormat: "openai_responses",
+          claudeDesktopModelRoutes: {
+            "claude-sonnet-4-6": { model: "gpt-5.5" },
+          },
+          testConfig: { enabled: true, testModel: "gpt-5.5" },
+        },
+      },
+      onSubmit,
+      {
+        variant: "tool-route-advanced",
+      },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("json-editor-json")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("模型测试配置")).toBeInTheDocument();
+    expect(screen.getByText("需要模型映射")).toBeInTheDocument();
+    expect(screen.getByText("模型映射")).toBeInTheDocument();
+    expect(screen.queryByLabelText("provider.name")).not.toBeInTheDocument();
+    expect(screen.queryByText("API Key")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      name: "THQ Gateway",
+      websiteUrl: "https://sub.tohoqing.com",
+      icon: "openai",
+      iconColor: "#0EA5E9",
+      presetCategory: "aggregator",
+      meta: {
+        claudeDesktopMode: "proxy",
+        apiFormat: "openai_responses",
+        claudeDesktopModelRoutes: {
+          "claude-sonnet-4-6": { model: "gpt-5.5" },
+        },
+        testConfig: { enabled: true, testModel: "gpt-5.5" },
       },
     });
   });

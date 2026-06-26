@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import * as QRCode from "qrcode";
 import { CreditCard, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,19 +11,40 @@ import type {
 } from "@/types/gateway";
 
 const RECHARGE_AMOUNTS = [10, 20, 50, 100, 200, 500] as const;
+const QR_SVG_DATA_URL_PREFIX = "data:image/svg+xml;charset=UTF-8,";
 
-const toQrImageSource = (value: string): string => {
+const isDirectImageSource = (value: string): boolean => {
   const trimmed = value.trim();
-  if (
-    trimmed.startsWith("data:image/") ||
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://")
-  ) {
-    return trimmed;
+  if (trimmed.toLowerCase().startsWith("data:image/")) return true;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    return /\.(?:png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(url.pathname);
+  } catch {
+    return false;
   }
+};
+
+const toExternalQrImageSource = (value: string): string => {
+  const trimmed = value.trim();
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
     trimmed,
   )}`;
+};
+
+const toQrImageSource = async (value: string): Promise<string> => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (isDirectImageSource(trimmed)) return trimmed;
+
+  const svg = await QRCode.toString(trimmed, {
+    type: "svg",
+    width: 220,
+    margin: 2,
+    errorCorrectionLevel: "M",
+  });
+  return `${QR_SVG_DATA_URL_PREFIX}${encodeURIComponent(svg)}`;
 };
 
 interface GatewayRechargePanelProps {
@@ -49,6 +71,7 @@ export function GatewayRechargePanel({
   const [amount, setAmount] = useState<number>(RECHARGE_AMOUNTS[1]);
   const [channelId, setChannelId] = useState("");
   const [qrOrder, setQrOrder] = useState<GatewayOrder | null>(null);
+  const [qrImageSrc, setQrImageSrc] = useState("");
   const selectedChannel = useMemo(
     () => enabledChannels.find((channel) => channel.id === channelId) ?? null,
     [channelId, enabledChannels],
@@ -61,6 +84,25 @@ export function GatewayRechargePanel({
         : enabledChannels[0]?.id || "",
     );
   }, [enabledChannels]);
+
+  useEffect(() => {
+    const qrCode = qrOrder?.qrCode?.trim() ?? "";
+    setQrImageSrc("");
+    if (!qrCode) return;
+
+    let cancelled = false;
+    void toQrImageSource(qrCode)
+      .then((source) => {
+        if (!cancelled) setQrImageSrc(source);
+      })
+      .catch(() => {
+        if (!cancelled) setQrImageSrc(toExternalQrImageSource(qrCode));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [qrOrder?.qrCode]);
 
   const amountAllowed = !selectedChannel
     ? false
@@ -147,11 +189,17 @@ export function GatewayRechargePanel({
               <p className="mt-1 text-xs text-muted-foreground">
                 订单金额：{formatGatewayNumber(qrOrder.amount)}
               </p>
-              <img
-                src={toQrImageSource(qrOrder.qrCode)}
-                alt="支付宝付款二维码"
-                className="mx-auto mt-3 h-44 w-44 rounded-md border border-border-default bg-white p-2"
-              />
+              {qrImageSrc ? (
+                <img
+                  src={qrImageSrc}
+                  alt="支付宝付款二维码"
+                  className="mx-auto mt-3 h-44 w-44 rounded-md border border-border-default bg-white p-2"
+                />
+              ) : (
+                <div className="mx-auto mt-3 flex h-44 w-44 items-center justify-center rounded-md border border-border-default bg-white p-2 text-xs text-muted-foreground">
+                  二维码生成中...
+                </div>
+              )}
               {qrOrder.paymentUrl ? (
                 <Button
                   type="button"

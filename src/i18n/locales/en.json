@@ -7,7 +7,7 @@
     "advancedProviders": "Provider Config",
     "auth": {
       "title": "Sign in to manage your AI gateway balance and local tool config",
-      "subtitle": "Fixed to sub.tohoqing.com, with balance, usage, models, orders, and tool setup in one workspace.",
+      "subtitle": "Balance, usage, models, orders, and tool setup in one workspace.",
       "loginTitle": "Account Login",
       "registerTitle": "Create Account",
       "email": "Email",
@@ -17,7 +17,7 @@
       "registerAccount": "Create account",
       "backToLogin": "Back to login",
       "firstKey": "First key",
-      "fixedGateway": "Fixed gateway"
+      "fixedGateway": "Unified"
     }
   },
   "common": {

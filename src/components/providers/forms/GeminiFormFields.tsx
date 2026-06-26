@@ -46,6 +46,8 @@ interface GeminiFormFieldsProps {
 
   // Speed Test Endpoints
   speedTestEndpoints: EndpointCandidate[];
+
+  hideProviderConnectionFields?: boolean;
 }
 
 export function GeminiFormFields({
@@ -70,6 +72,7 @@ export function GeminiFormFields({
   model,
   onModelChange,
   speedTestEndpoints,
+  hideProviderConnectionFields = false,
 }: GeminiFormFieldsProps) {
   const { t } = useTranslation();
 
@@ -132,20 +135,22 @@ export function GeminiFormFields({
       )}
 
       {/* API Key 输入框 */}
-      {shouldShowApiKey && !isGoogleOfficial && (
-        <ApiKeySection
-          value={apiKey}
-          onChange={onApiKeyChange}
-          category={category}
-          shouldShowLink={shouldShowApiKeyLink}
-          websiteUrl={websiteUrl}
-          isPartner={isPartner}
-          partnerPromotionKey={partnerPromotionKey}
-        />
-      )}
+      {shouldShowApiKey &&
+        !isGoogleOfficial &&
+        !hideProviderConnectionFields && (
+          <ApiKeySection
+            value={apiKey}
+            onChange={onApiKeyChange}
+            category={category}
+            shouldShowLink={shouldShowApiKeyLink}
+            websiteUrl={websiteUrl}
+            isPartner={isPartner}
+            partnerPromotionKey={partnerPromotionKey}
+          />
+        )}
 
       {/* Base URL 输入框（统一使用与 Codex 相同的样式与交互） */}
-      {shouldShowSpeedTest && (
+      {shouldShowSpeedTest && !hideProviderConnectionFields && (
         <EndpointField
           id="baseUrl"
           label={t("providerForm.apiEndpoint", { defaultValue: "API 端点" })}
@@ -193,20 +198,22 @@ export function GeminiFormFields({
       )}
 
       {/* 端点测速弹窗 */}
-      {shouldShowSpeedTest && isEndpointModalOpen && (
-        <EndpointSpeedTest
-          appId="gemini"
-          providerId={providerId}
-          value={baseUrl}
-          onChange={onBaseUrlChange}
-          initialEndpoints={speedTestEndpoints}
-          visible={isEndpointModalOpen}
-          onClose={() => onEndpointModalToggle(false)}
-          autoSelect={autoSelect}
-          onAutoSelectChange={onAutoSelectChange}
-          onCustomEndpointsChange={onCustomEndpointsChange}
-        />
-      )}
+      {shouldShowSpeedTest &&
+        !hideProviderConnectionFields &&
+        isEndpointModalOpen && (
+          <EndpointSpeedTest
+            appId="gemini"
+            providerId={providerId}
+            value={baseUrl}
+            onChange={onBaseUrlChange}
+            initialEndpoints={speedTestEndpoints}
+            visible={isEndpointModalOpen}
+            onClose={() => onEndpointModalToggle(false)}
+            autoSelect={autoSelect}
+            onAutoSelectChange={onAutoSelectChange}
+            onCustomEndpointsChange={onCustomEndpointsChange}
+          />
+        )}
     </>
   );
 }

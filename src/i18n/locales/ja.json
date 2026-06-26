@@ -7,7 +7,7 @@
     "advancedProviders": "プロバイダー設定",
     "auth": {
       "title": "AI ゲートウェイの残高とローカルツール設定を管理",
-      "subtitle": "sub.tohoqing.com に固定し、残高、使用量、モデル、注文、ツール設定を一つの画面で扱えます。",
+      "subtitle": "残高、使用量、モデル、注文、ツール設定を一つの画面で扱えます。",
       "loginTitle": "アカウントログイン",
       "registerTitle": "アカウント作成",
       "email": "メール",
@@ -17,7 +17,7 @@
       "registerAccount": "アカウント作成",
       "backToLogin": "ログインへ戻る",
       "firstKey": "最初のキー",
-      "fixedGateway": "固定ゲートウェイ"
+      "fixedGateway": "一元管理"
     }
   },
   "common": {

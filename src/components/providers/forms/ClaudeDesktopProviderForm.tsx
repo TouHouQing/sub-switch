@@ -36,20 +36,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import JsonEditor from "@/components/JsonEditor";
 import { BasicFormFields } from "./BasicFormFields";
 import { CodexOAuthSection } from "./CodexOAuthSection";
 import { CopilotAuthSection } from "./CopilotAuthSection";
 import { EndpointField } from "./shared/EndpointField";
 import { ModelDropdown } from "./shared/ModelDropdown";
 import { ProviderPresetSelector } from "./ProviderPresetSelector";
+import {
+  ProviderAdvancedConfig,
+  type PricingModelSourceOption,
+} from "./ProviderAdvancedConfig";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import type {
   ClaudeApiFormat,
   ClaudeDesktopModelRoute,
   ProviderCategory,
   ProviderMeta,
+  ProviderTestConfig,
 } from "@/types";
+import { isNonNegativeDecimalString } from "@/types/usage";
 import type { OpenClawSuggestedDefaults } from "@/config/openclawProviderPresets";
+import { normalizePricingSource } from "./helpers/opencodeFormUtils";
 import {
   CLAUDE_DESKTOP_ROLE_ROUTE_IDS,
   claudeDesktopProviderPresets,
@@ -100,6 +108,7 @@ export interface ClaudeDesktopProviderFormProps {
     iconColor?: string;
   };
   showButtons?: boolean;
+  variant?: "default" | "tool-route-advanced";
 }
 
 type RouteRow = {
@@ -248,8 +257,10 @@ export function ClaudeDesktopProviderForm({
   onSubmittingChange,
   initialData,
   showButtons = true,
+  variant = "default",
 }: ClaudeDesktopProviderFormProps) {
   const { t } = useTranslation();
+  const isToolRouteAdvancedMode = variant === "tool-route-advanced";
   const initialMode = initialData?.meta?.claudeDesktopMode ?? "direct";
   const [mode, setMode] = useState<"direct" | "proxy">(initialMode);
   const needsModelMapping = mode === "proxy";
@@ -277,6 +288,22 @@ export function ClaudeDesktopProviderForm({
   const [codexFastMode, setCodexFastMode] = useState<boolean>(
     () => initialData?.meta?.codexFastMode ?? false,
   );
+  const [testConfig, setTestConfig] = useState<ProviderTestConfig>(
+    () => initialData?.meta?.testConfig ?? { enabled: false },
+  );
+  const [pricingConfig, setPricingConfig] = useState<{
+    enabled: boolean;
+    costMultiplier?: string;
+    pricingModelSource: PricingModelSourceOption;
+  }>(() => ({
+    enabled:
+      initialData?.meta?.costMultiplier !== undefined ||
+      initialData?.meta?.pricingModelSource !== undefined,
+    costMultiplier: initialData?.meta?.costMultiplier,
+    pricingModelSource: normalizePricingSource(
+      initialData?.meta?.pricingModelSource,
+    ),
+  }));
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
     "custom",
   );
@@ -515,7 +542,7 @@ export function ClaudeDesktopProviderForm({
   };
 
   const handleSubmit = async (values: ProviderFormData) => {
-    if (!values.name.trim()) {
+    if (!isToolRouteAdvancedMode && !values.name.trim()) {
       toast.error(
         t("providerForm.fillSupplierName", {
           defaultValue: "请填写供应商名称",
@@ -523,7 +550,22 @@ export function ClaudeDesktopProviderForm({
       );
       return;
     }
-    if (isOfficial) {
+
+    const costMultiplier = pricingConfig.costMultiplier?.trim();
+    if (
+      pricingConfig.enabled &&
+      costMultiplier &&
+      !isNonNegativeDecimalString(costMultiplier)
+    ) {
+      toast.error(
+        t("settings.globalProxy.defaultCostMultiplierInvalid", {
+          defaultValue: "成本倍率必须为非负数",
+        }),
+      );
+      return;
+    }
+
+    if (!isToolRouteAdvancedMode && isOfficial) {
       // 官方供应商使用 Claude Desktop 内置 1P 模式，保持空 env 占位；
       // 不写 claudeDesktopMode / claudeDesktopModelRoutes / apiFormat，
       // 与启动 seed 的 OFFICIAL_SEEDS 占位语义一致。
@@ -547,7 +589,7 @@ export function ClaudeDesktopProviderForm({
       });
       return;
     }
-    if (!baseUrl.trim()) {
+    if (!isToolRouteAdvancedMode && !baseUrl.trim()) {
       toast.error(
         t("providerForm.fetchModelsNeedEndpoint", {
           defaultValue: "请先填写接口地址",
@@ -555,7 +597,7 @@ export function ClaudeDesktopProviderForm({
       );
       return;
     }
-    if (!usesManagedOAuth && !apiKey.trim()) {
+    if (!isToolRouteAdvancedMode && !usesManagedOAuth && !apiKey.trim()) {
       toast.error(
         t("providerForm.fetchModelsNeedApiKey", {
           defaultValue: "请先填写 API Key",
@@ -614,20 +656,31 @@ export function ClaudeDesktopProviderForm({
       }
     }
 
-    const settingsConfig = clonePlainRecord(initialData?.settingsConfig);
-    const env = clonePlainRecord(settingsConfig.env);
-    delete env.ANTHROPIC_AUTH_TOKEN;
-    delete env.ANTHROPIC_API_KEY;
-    settingsConfig.env = usesManagedOAuth
-      ? {
-          ...env,
-          ANTHROPIC_BASE_URL: baseUrl.trim().replace(/\/+$/, ""),
-        }
-      : {
-          ...env,
-          ANTHROPIC_BASE_URL: baseUrl.trim().replace(/\/+$/, ""),
-          [apiKeyField]: apiKey.trim(),
-        };
+    const settingsConfig = isToolRouteAdvancedMode
+      ? (() => {
+          try {
+            return clonePlainRecord(JSON.parse(values.settingsConfig || "{}"));
+          } catch {
+            return clonePlainRecord(initialData?.settingsConfig);
+          }
+        })()
+      : clonePlainRecord(initialData?.settingsConfig);
+
+    if (!isToolRouteAdvancedMode) {
+      const env = clonePlainRecord(settingsConfig.env);
+      delete env.ANTHROPIC_AUTH_TOKEN;
+      delete env.ANTHROPIC_API_KEY;
+      settingsConfig.env = usesManagedOAuth
+        ? {
+            ...env,
+            ANTHROPIC_BASE_URL: baseUrl.trim().replace(/\/+$/, ""),
+          }
+        : {
+            ...env,
+            ANTHROPIC_BASE_URL: baseUrl.trim().replace(/\/+$/, ""),
+            [apiKeyField]: apiKey.trim(),
+          };
+    }
 
     const routeMap = routeEntries.reduce<
       Record<string, ClaudeDesktopModelRoute>
@@ -665,21 +718,37 @@ export function ClaudeDesktopProviderForm({
           : undefined;
     meta.codexFastMode =
       activeProviderType === "codex_oauth" ? codexFastMode : undefined;
+    meta.testConfig = testConfig.enabled ? testConfig : undefined;
+    meta.costMultiplier = pricingConfig.enabled ? costMultiplier : undefined;
+    meta.pricingModelSource =
+      pricingConfig.enabled && pricingConfig.pricingModelSource !== "inherit"
+        ? pricingConfig.pricingModelSource
+        : undefined;
 
     delete meta.endpointAutoSelect;
     delete meta.isFullUrl;
 
     await onSubmit({
       ...values,
-      name: values.name.trim(),
-      websiteUrl: values.websiteUrl?.trim() ?? "",
-      notes: values.notes?.trim() ?? "",
+      name: isToolRouteAdvancedMode
+        ? (initialData?.name ?? values.name).trim()
+        : values.name.trim(),
+      websiteUrl: isToolRouteAdvancedMode
+        ? (initialData?.websiteUrl ?? values.websiteUrl ?? "").trim()
+        : (values.websiteUrl?.trim() ?? ""),
+      notes: isToolRouteAdvancedMode
+        ? (initialData?.notes ?? "")
+        : (values.notes?.trim() ?? ""),
       settingsConfig: JSON.stringify(settingsConfig, null, 2),
       meta,
-      presetId: activePreset?.id,
-      presetCategory: activePreset?.category,
-      isPartner: activePreset?.isPartner,
-      partnerPromotionKey: activePreset?.partnerPromotionKey,
+      presetId: isToolRouteAdvancedMode ? undefined : activePreset?.id,
+      presetCategory: isToolRouteAdvancedMode
+        ? initialData?.category
+        : activePreset?.category,
+      isPartner: isToolRouteAdvancedMode ? undefined : activePreset?.isPartner,
+      partnerPromotionKey: isToolRouteAdvancedMode
+        ? undefined
+        : activePreset?.partnerPromotionKey,
     });
   };
 
@@ -722,7 +791,7 @@ export function ClaudeDesktopProviderForm({
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-6"
       >
-        {!initialData && (
+        {!isToolRouteAdvancedMode && !initialData && (
           <ProviderPresetSelector
             selectedPresetId={selectedPresetId}
             presetEntries={presetEntries}
@@ -732,9 +801,43 @@ export function ClaudeDesktopProviderForm({
           />
         )}
 
-        <BasicFormFields form={form} />
+        {!isToolRouteAdvancedMode && <BasicFormFields form={form} />}
 
-        {isOfficial && (
+        {isToolRouteAdvancedMode && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="settingsConfig">{t("provider.configJson")}</Label>
+              <JsonEditor
+                value={form.watch("settingsConfig")}
+                onChange={(config) =>
+                  form.setValue("settingsConfig", config, {
+                    shouldValidate: true,
+                  })
+                }
+                rows={14}
+                showValidation={true}
+                language="json"
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="settingsConfig"
+              render={() => (
+                <FormItem className="space-y-0">
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <ProviderAdvancedConfig
+              testConfig={testConfig}
+              pricingConfig={pricingConfig}
+              onTestConfigChange={setTestConfig}
+              onPricingConfigChange={setPricingConfig}
+            />
+          </>
+        )}
+
+        {!isToolRouteAdvancedMode && isOfficial && (
           <div className="rounded-lg border border-border-default bg-muted/20 p-3 text-sm text-muted-foreground">
             {t("claudeDesktop.officialNotice", {
               defaultValue:
@@ -745,51 +848,55 @@ export function ClaudeDesktopProviderForm({
 
         {!isOfficial && (
           <>
-            {usesManagedOAuth ? (
-              <div className="rounded-lg border border-border-default bg-muted/20 p-3">
-                {activeProviderType === "github_copilot" ? (
-                  <CopilotAuthSection
-                    selectedAccountId={selectedGitHubAccountId}
-                    onAccountSelect={setSelectedGitHubAccountId}
-                  />
+            {!isToolRouteAdvancedMode && (
+              <>
+                {usesManagedOAuth ? (
+                  <div className="rounded-lg border border-border-default bg-muted/20 p-3">
+                    {activeProviderType === "github_copilot" ? (
+                      <CopilotAuthSection
+                        selectedAccountId={selectedGitHubAccountId}
+                        onAccountSelect={setSelectedGitHubAccountId}
+                      />
+                    ) : (
+                      <CodexOAuthSection
+                        selectedAccountId={selectedCodexAccountId}
+                        onAccountSelect={setSelectedCodexAccountId}
+                        fastModeEnabled={codexFastMode}
+                        onFastModeChange={setCodexFastMode}
+                      />
+                    )}
+                  </div>
                 ) : (
-                  <CodexOAuthSection
-                    selectedAccountId={selectedCodexAccountId}
-                    onAccountSelect={setSelectedCodexAccountId}
-                    fastModeEnabled={codexFastMode}
-                    onFastModeChange={setCodexFastMode}
-                  />
+                  <div className="space-y-1">
+                    <Label>{"API Key"}</Label>
+                    <Input
+                      value={apiKey}
+                      onChange={(event) => setApiKey(event.target.value)}
+                      type="password"
+                      placeholder="sk-..."
+                    />
+                  </div>
                 )}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <Label>{"API Key"}</Label>
-                <Input
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  type="password"
-                  placeholder="sk-..."
-                />
-              </div>
-            )}
 
-            <EndpointField
-              id="baseUrl"
-              label={t("providerForm.apiEndpoint")}
-              value={baseUrl}
-              onChange={(v) => setBaseUrl(v)}
-              placeholder={t("providerForm.apiEndpointPlaceholder")}
-              hint={
-                needsModelMapping && apiFormat === "openai_responses"
-                  ? t("providerForm.apiHintResponses")
-                  : needsModelMapping && apiFormat === "openai_chat"
-                    ? t("providerForm.apiHintOAI")
-                    : needsModelMapping && apiFormat === "gemini_native"
-                      ? t("providerForm.apiHintGeminiNative")
-                      : t("providerForm.apiHint")
-              }
-              showManageButton={false}
-            />
+                <EndpointField
+                  id="baseUrl"
+                  label={t("providerForm.apiEndpoint")}
+                  value={baseUrl}
+                  onChange={(v) => setBaseUrl(v)}
+                  placeholder={t("providerForm.apiEndpointPlaceholder")}
+                  hint={
+                    needsModelMapping && apiFormat === "openai_responses"
+                      ? t("providerForm.apiHintResponses")
+                      : needsModelMapping && apiFormat === "openai_chat"
+                        ? t("providerForm.apiHintOAI")
+                        : needsModelMapping && apiFormat === "gemini_native"
+                          ? t("providerForm.apiHintGeminiNative")
+                          : t("providerForm.apiHint")
+                  }
+                  showManageButton={false}
+                />
+              </>
+            )}
 
             <div className="space-y-3 rounded-lg border border-border-default bg-muted/20 p-4">
               <div className="flex items-center justify-between gap-4">
@@ -870,7 +977,7 @@ export function ClaudeDesktopProviderForm({
                           defaultValue: "模型映射",
                         })}
                       </Label>
-                      {!usesManagedOAuth && (
+                      {!isToolRouteAdvancedMode && !usesManagedOAuth && (
                         <Button
                           type="button"
                           variant="outline"
@@ -1032,21 +1139,22 @@ export function ClaudeDesktopProviderForm({
                             "仅当供应商的 /v1/models 不可用或没有返回 Claude Desktop 可识别的 Sonnet / Opus / Haiku 模型名时填写；勾选 1M 会向 Claude Desktop 声明支持 1M 上下文。",
                         })}
                       </p>
-                      {renderActionButtons(
-                        () =>
-                          setRoutes((current) => [
-                            ...current,
-                            createRouteRow({
-                              route: "",
-                              model: "",
-                              labelOverride: "",
-                              supports1m: false,
-                            }),
-                          ]),
-                        t("claudeDesktop.addModel", {
-                          defaultValue: "添加模型",
-                        }),
-                      )}
+                      {!isToolRouteAdvancedMode &&
+                        renderActionButtons(
+                          () =>
+                            setRoutes((current) => [
+                              ...current,
+                              createRouteRow({
+                                route: "",
+                                model: "",
+                                labelOverride: "",
+                                supports1m: false,
+                              }),
+                            ]),
+                          t("claudeDesktop.addModel", {
+                            defaultValue: "添加模型",
+                          }),
+                        )}
                     </div>
 
                     {routes.length > 0 ? (

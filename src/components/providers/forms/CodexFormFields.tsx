@@ -78,6 +78,8 @@ interface CodexFormFieldsProps {
   // Local proxy User-Agent override
   customUserAgent: string;
   onCustomUserAgentChange: (value: string) => void;
+
+  hideProviderConnectionFields?: boolean;
 }
 
 type CodexCatalogRow = CodexCatalogModel & { rowId: string };
@@ -136,6 +138,7 @@ export function CodexFormFields({
   speedTestEndpoints,
   customUserAgent,
   onCustomUserAgentChange,
+  hideProviderConnectionFields = false,
 }: CodexFormFieldsProps) {
   const { t } = useTranslation();
 
@@ -309,28 +312,30 @@ export function CodexFormFields({
   return (
     <>
       {/* Codex API Key 输入框 */}
-      <ApiKeySection
-        id="codexApiKey"
-        label="API Key"
-        value={codexApiKey}
-        onChange={onApiKeyChange}
-        category={category}
-        shouldShowLink={shouldShowApiKeyLink}
-        websiteUrl={websiteUrl}
-        isPartner={isPartner}
-        partnerPromotionKey={partnerPromotionKey}
-        placeholder={{
-          official: t("providerForm.codexOfficialNoApiKey", {
-            defaultValue: "官方供应商无需 API Key",
-          }),
-          thirdParty: t("providerForm.codexApiKeyAutoFill", {
-            defaultValue: "输入 API Key，将自动填充到配置",
-          }),
-        }}
-      />
+      {!hideProviderConnectionFields && (
+        <ApiKeySection
+          id="codexApiKey"
+          label="API Key"
+          value={codexApiKey}
+          onChange={onApiKeyChange}
+          category={category}
+          shouldShowLink={shouldShowApiKeyLink}
+          websiteUrl={websiteUrl}
+          isPartner={isPartner}
+          partnerPromotionKey={partnerPromotionKey}
+          placeholder={{
+            official: t("providerForm.codexOfficialNoApiKey", {
+              defaultValue: "官方供应商无需 API Key",
+            }),
+            thirdParty: t("providerForm.codexApiKeyAutoFill", {
+              defaultValue: "输入 API Key，将自动填充到配置",
+            }),
+          }}
+        />
+      )}
 
       {/* Codex Base URL 输入框 */}
-      {shouldShowSpeedTest && (
+      {shouldShowSpeedTest && !hideProviderConnectionFields && (
         <EndpointField
           id="codexBaseUrl"
           label={t("codexConfig.apiUrlLabel")}
@@ -638,20 +643,22 @@ export function CodexFormFields({
       )}
 
       {/* 端点测速弹窗 - Codex */}
-      {shouldShowSpeedTest && isEndpointModalOpen && (
-        <EndpointSpeedTest
-          appId="codex"
-          providerId={providerId}
-          value={codexBaseUrl}
-          onChange={onBaseUrlChange}
-          initialEndpoints={speedTestEndpoints}
-          visible={isEndpointModalOpen}
-          onClose={() => onEndpointModalToggle(false)}
-          autoSelect={autoSelect}
-          onAutoSelectChange={onAutoSelectChange}
-          onCustomEndpointsChange={onCustomEndpointsChange}
-        />
-      )}
+      {shouldShowSpeedTest &&
+        !hideProviderConnectionFields &&
+        isEndpointModalOpen && (
+          <EndpointSpeedTest
+            appId="codex"
+            providerId={providerId}
+            value={codexBaseUrl}
+            onChange={onBaseUrlChange}
+            initialEndpoints={speedTestEndpoints}
+            visible={isEndpointModalOpen}
+            onClose={() => onEndpointModalToggle(false)}
+            autoSelect={autoSelect}
+            onAutoSelectChange={onAutoSelectChange}
+            onCustomEndpointsChange={onCustomEndpointsChange}
+          />
+        )}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AppId } from "@/lib/api";
 import { settingsApi } from "@/lib/api";
 import { applyGatewayToolConfig } from "@/lib/gateway/applyToolConfig";
@@ -36,6 +37,7 @@ interface GatewayAppProps {
   visibleApps?: VisibleApps;
   onSwitchApp: (appId: AppId) => void;
   onOpenAdvancedProviders: () => void;
+  onEditToolProvider: (appId: AppId) => void;
 }
 
 export function GatewayApp({
@@ -43,8 +45,10 @@ export function GatewayApp({
   visibleApps,
   onSwitchApp,
   onOpenAdvancedProviders,
+  onEditToolProvider,
 }: GatewayAppProps) {
   const [isApplyingToolConfig, setIsApplyingToolConfig] = useState(false);
+  const queryClient = useQueryClient();
   const sessionQuery = useGatewaySessionQuery();
   const hasSession = Boolean(sessionQuery.data?.accessToken);
 
@@ -146,6 +150,9 @@ export function GatewayApp({
         apiKey: selectedKey.secret,
         models: modelsQuery.data ?? [],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["providers", targetApp],
+      });
       toast.success("已写入本地工具配置");
     } catch (error) {
       toast.error(extractErrorMessage(error) || "写入本地工具配置失败");
@@ -236,6 +243,7 @@ export function GatewayApp({
       onOpenExternal={(url) => void handleOpenExternal(url)}
       onLogout={() => void handleLogout()}
       onOpenAdvancedProviders={onOpenAdvancedProviders}
+      onEditToolProvider={onEditToolProvider}
     />
   );
 }

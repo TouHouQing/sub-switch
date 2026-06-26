@@ -1,5 +1,4 @@
 import { ReceiptText } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,13 +17,44 @@ import type { GatewayOrder } from "@/types/gateway";
 interface GatewayOrdersPanelProps {
   orders: GatewayOrder[];
   loading: boolean;
-  onOpenExternal: (url: string) => void;
+}
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending: "待支付",
+  unpaid: "待支付",
+  awaiting_payment: "待支付",
+  wait_pay: "待支付",
+  paying: "支付中",
+  processing: "处理中",
+  paid: "已支付",
+  success: "已支付",
+  succeeded: "已支付",
+  completed: "已支付",
+  complete: "已支付",
+  finished: "已支付",
+  cancelled: "已取消",
+  canceled: "已取消",
+  closed: "已关闭",
+  expired: "已过期",
+  failed: "支付失败",
+  refunded: "已退款",
+};
+
+function formatOrderStatus(status?: string) {
+  const normalizedStatus = status?.trim();
+
+  if (!normalizedStatus) {
+    return "--";
+  }
+
+  return (
+    ORDER_STATUS_LABELS[normalizedStatus.toLowerCase()] ?? normalizedStatus
+  );
 }
 
 export function GatewayOrdersPanel({
   orders,
   loading,
-  onOpenExternal,
 }: GatewayOrdersPanelProps) {
   return (
     <section className="rounded-lg border border-border-default bg-card p-4 shadow-sm">
@@ -50,7 +80,6 @@ export function GatewayOrdersPanel({
               <TableHead className="px-2 text-right">金额</TableHead>
               <TableHead className="px-2">状态</TableHead>
               <TableHead className="px-2">时间</TableHead>
-              <TableHead className="px-2 text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -63,24 +92,12 @@ export function GatewayOrdersPanel({
                   {formatGatewayNumber(order.amount)}
                 </TableCell>
                 <TableCell className="px-2 text-xs">
-                  <Badge variant="secondary">{order.status || "--"}</Badge>
+                  <Badge variant="secondary">
+                    {formatOrderStatus(order.status)}
+                  </Badge>
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-2 text-xs text-muted-foreground">
                   {formatGatewayDateTime(order.createdAt)}
-                </TableCell>
-                <TableCell className="px-2 text-right">
-                  {order.paymentUrl ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOpenExternal(order.paymentUrl!)}
-                    >
-                      支付
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">--</span>
-                  )}
                 </TableCell>
               </TableRow>
             ))}

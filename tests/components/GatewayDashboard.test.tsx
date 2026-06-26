@@ -71,6 +71,7 @@ const baseProps = (overrides: Partial<GatewayDashboardProps> = {}) =>
     onOpenExternal: vi.fn(),
     onLogout: vi.fn(),
     onOpenAdvancedProviders: vi.fn(),
+    onEditToolProvider: vi.fn(),
     ...overrides,
   }) satisfies GatewayDashboardProps;
 
@@ -142,6 +143,16 @@ describe("GatewayDashboard", () => {
     expect(screen.getAllByText("ac-switch").length).toBeGreaterThan(0);
   });
 
+  it("omits fixed-gateway and current-view wording from the dashboard", () => {
+    render(<GatewayDashboard {...baseProps()} />);
+
+    expect(screen.queryByText("固定 sub.tohoqing.com")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("只使用 sub.tohoqing.com"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/当前查看/)).not.toBeInTheDocument();
+  });
+
   it("shows tool routes according to the main-page visibility setting", () => {
     render(
       <GatewayDashboard
@@ -172,6 +183,28 @@ describe("GatewayDashboard", () => {
     expect(
       screen.queryByRole("button", { name: "配置到 Gemini" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens the restricted provider editor for a tool route", () => {
+    const handleEditToolProvider = vi.fn();
+    const handleApply = vi.fn();
+    const handleSwitchApp = vi.fn();
+
+    render(
+      <GatewayDashboard
+        {...baseProps({
+          onEditToolProvider: handleEditToolProvider,
+          onApplyToolConfig: handleApply,
+          onSwitchApp: handleSwitchApp,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑 Codex" }));
+
+    expect(handleEditToolProvider).toHaveBeenCalledWith("codex");
+    expect(handleApply).not.toHaveBeenCalled();
+    expect(handleSwitchApp).not.toHaveBeenCalled();
   });
 
   it("disables tool configuration without a selected key secret", () => {

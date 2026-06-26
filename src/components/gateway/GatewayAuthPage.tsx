@@ -57,7 +57,7 @@ export function GatewayAuthPage({
             <p className="mt-4 max-w-md text-sm leading-6 text-zinc-300">
               {t("gateway.auth.subtitle", {
                 defaultValue:
-                  "固定连接 sub.tohoqing.com，余额、用量、模型、订单和本地工具写入集中在一个工作台里。",
+                  "余额、用量、模型、订单和本地工具写入集中在一个工作台里。",
               })}
             </p>
           </div>
@@ -75,13 +75,16 @@ export function GatewayAuthPage({
             <div className="rounded-md border border-white/10 bg-white/5 p-3">
               <p className="text-zinc-500">API</p>
               <p className="mt-1 font-medium text-zinc-100">
-                {t("gateway.auth.fixedGateway", { defaultValue: "固定中转站" })}
+                {t("gateway.auth.fixedGateway", { defaultValue: "统一管理" })}
               </p>
             </div>
           </div>
         </div>
 
-        <form className="flex flex-col justify-center p-8" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col justify-center p-8"
+          onSubmit={handleSubmit}
+        >
           <div>
             <div className="flex items-center gap-2">
               {isRegister ? (
@@ -91,11 +94,15 @@ export function GatewayAuthPage({
               )}
               <h2 className="text-xl font-semibold">
                 {isRegister
-                  ? t("gateway.auth.registerTitle", { defaultValue: "注册账号" })
+                  ? t("gateway.auth.registerTitle", {
+                      defaultValue: "注册账号",
+                    })
                   : t("gateway.auth.loginTitle", { defaultValue: "账号登录" })}
               </h2>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{GATEWAY_ORIGIN}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {GATEWAY_ORIGIN}
+            </p>
           </div>
 
           <div className="mt-8 space-y-4">

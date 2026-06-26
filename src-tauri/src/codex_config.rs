@@ -1889,7 +1889,7 @@ name = "any"
             crate::identity::CODEX_MODEL_CATALOG_FILE_NAME
         ));
         let config = format!("model_catalog_json = \"{}\"\n", generated.display());
-        let resolved = resolve_cc_switch_catalog_path(config, &generated).expect("path resolves");
+        let resolved = resolve_cc_switch_catalog_path(&config, &generated).expect("path resolves");
         assert_eq!(resolved, generated);
     }
 

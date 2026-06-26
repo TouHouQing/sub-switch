@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, PlugZap } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Pencil, PlugZap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
 import { cn } from "@/lib/utils";
@@ -17,6 +16,7 @@ interface GatewayToolSwitcherProps {
   isApplying: boolean;
   onSwitchApp: (appId: AppId) => void;
   onApplyToolConfig: (appId: AppId) => void;
+  onEditToolProvider: (appId: AppId) => void;
 }
 
 const defaultVisibleApps: VisibleApps = {
@@ -51,13 +51,13 @@ const toolRoutes: Array<{
     id: "codex",
     name: "Codex",
     icon: "openai",
-    description: "写入 auth/config，让 Codex 请求走固定 Model Base。",
+    description: "写入 auth/config，让 Codex 请求走 THQ Model Base。",
   },
   {
     id: "gemini",
     name: "Gemini",
     icon: "gemini",
-    description: "写入 Gemini 本地配置，并固定到 THQ 路由地址。",
+    description: "写入 Gemini 本地配置，并使用 THQ 路由地址。",
   },
   {
     id: "opencode",
@@ -87,6 +87,7 @@ export function GatewayToolSwitcher({
   isApplying,
   onSwitchApp,
   onApplyToolConfig,
+  onEditToolProvider,
 }: GatewayToolSwitcherProps) {
   const [message, setMessage] = useState("");
 
@@ -115,12 +116,6 @@ export function GatewayToolSwitcher({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold">工具路由</h3>
-            <Badge
-              variant="outline"
-              className="border-cyan-500/30 bg-cyan-500/5 text-cyan-700 dark:text-cyan-300"
-            >
-              只使用 sub.tohoqing.com
-            </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             默认只显示设置中主页面开启的工具。
@@ -150,14 +145,12 @@ export function GatewayToolSwitcher({
 
       <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
         {visibleToolRoutes.map((tool) => {
-          const isActive = activeApp === tool.id;
-
           return (
             <article
               key={tool.id}
               className={cn(
                 "flex min-h-[156px] flex-col rounded-lg border bg-background p-4 transition-colors",
-                isActive
+                activeApp === tool.id
                   ? "border-blue-500/35 bg-blue-500/[0.03]"
                   : "border-border-default hover:border-border-hover",
               )}
@@ -181,20 +174,22 @@ export function GatewayToolSwitcher({
                     </p>
                   </div>
                 </div>
-                {isActive ? (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-300"
-                  >
-                    当前查看
-                  </Badge>
-                ) : null}
               </div>
 
-              <div className="mt-auto pt-4">
+              <div className="mt-auto flex gap-2 pt-4">
                 <Button
                   type="button"
-                  className="w-full"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => onEditToolProvider(tool.id)}
+                  aria-label={`编辑 ${tool.name}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1"
                   onClick={() => handleApply(tool.id)}
                   disabled={isApplying}
                 >

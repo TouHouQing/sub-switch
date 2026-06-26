@@ -1,4 +1,5 @@
 import type { AppId } from "@/lib/api";
+import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
 import {
   GATEWAY_DEFAULT_CLAUDE_MODEL,
   GATEWAY_DEFAULT_GEMINI_MODEL,
@@ -26,6 +27,18 @@ const modelIds = (models: GatewayModel[]): string[] => {
 
 const namedModel = (models: GatewayModel[], fallback: string): string =>
   modelIds(models)[0] ?? fallback;
+
+const namedGatewayModel = (
+  models: GatewayModel[],
+  fallback: string,
+): { id: string; name: string } => {
+  const selected = models.find((model) => model.enabled && model.id.trim());
+  if (!selected) {
+    return { id: fallback, name: fallback };
+  }
+  const id = selected.id.trim();
+  return { id, name: selected.name.trim() || id };
+};
 
 const baseProvider = (
   settingsConfig: Provider["settingsConfig"],
@@ -81,7 +94,36 @@ export const buildGatewayProviderForApp = (
 ): Provider => {
   const { apiKey, models } = options;
 
-  if (appId === "claude" || appId === "claude-desktop") {
+  if (appId === "claude-desktop") {
+    const model = namedGatewayModel(models, GATEWAY_DEFAULT_CLAUDE_MODEL);
+    const route = () => ({
+      model: model.id,
+      labelOverride: model.name,
+    });
+    return {
+      ...baseProvider({
+        env: {
+          ANTHROPIC_BASE_URL: GATEWAY_MODEL_BASE_URL,
+          ANTHROPIC_AUTH_TOKEN: apiKey,
+          ANTHROPIC_MODEL: model.id,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: model.id,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: model.id,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: model.id,
+        },
+      }),
+      meta: {
+        apiFormat: "openai_responses",
+        claudeDesktopMode: "proxy",
+        claudeDesktopModelRoutes: {
+          [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet]: route(),
+          [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.opus]: route(),
+          [CLAUDE_DESKTOP_ROLE_ROUTE_IDS.haiku]: route(),
+        },
+      },
+    };
+  }
+
+  if (appId === "claude") {
     return {
       ...baseProvider({
         env: {
@@ -104,7 +146,6 @@ export const buildGatewayProviderForApp = (
       }),
       meta: {
         apiFormat: "openai_responses",
-        claudeDesktopMode: appId === "claude-desktop" ? "direct" : undefined,
       },
     };
   }

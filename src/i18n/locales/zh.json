@@ -7,7 +7,7 @@
     "advancedProviders": "供应商配置",
     "auth": {
       "title": "登录后管理你的 AI 中转站额度与本地工具配置",
-      "subtitle": "固定连接 sub.tohoqing.com，余额、用量、模型、订单和本地工具写入集中在一个工作台里。",
+      "subtitle": "余额、用量、模型、订单和本地工具写入集中在一个工作台里。",
       "loginTitle": "账号登录",
       "registerTitle": "注册账号",
       "email": "邮箱",
@@ -17,7 +17,7 @@
       "registerAccount": "注册账号",
       "backToLogin": "返回登录",
       "firstKey": "默认第一个",
-      "fixedGateway": "固定中转站"
+      "fixedGateway": "统一管理"
     }
   },
   "common": {

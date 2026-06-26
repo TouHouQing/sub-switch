@@ -52,10 +52,17 @@ export function ProviderAdvancedConfig({
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border/50 bg-muted/20">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="flex w-full items-center justify-between p-4 hover:bg-muted/30 transition-colors"
           onClick={() => setIsTestConfigOpen(!isTestConfigOpen)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setIsTestConfigOpen((open) => !open);
+            }
+          }}
         >
           <div className="flex items-center gap-3">
             <FlaskConical className="h-4 w-4 text-muted-foreground" />
@@ -93,7 +100,7 @@ export function ProviderAdvancedConfig({
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
-        </button>
+        </div>
         <div
           className={cn(
             "overflow-hidden transition-all duration-200",
@@ -229,10 +236,17 @@ export function ProviderAdvancedConfig({
 
       {/* 计费配置 */}
       <div className="rounded-lg border border-border/50 bg-muted/20">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="flex w-full items-center justify-between p-4 hover:bg-muted/30 transition-colors"
           onClick={() => setIsPricingConfigOpen(!isPricingConfigOpen)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setIsPricingConfigOpen((open) => !open);
+            }
+          }}
         >
           <div className="flex items-center gap-3">
             <Coins className="h-4 w-4 text-muted-foreground" />
@@ -270,7 +284,7 @@ export function ProviderAdvancedConfig({
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
-        </button>
+        </div>
         <div
           className={cn(
             "overflow-hidden transition-all duration-200",
