@@ -2,8 +2,13 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AppId } from "@/lib/api";
-import { settingsApi } from "@/lib/api";
+import { providersApi, settingsApi } from "@/lib/api";
 import { applyGatewayToolConfig } from "@/lib/gateway/applyToolConfig";
+import {
+  buildGatewayProviderDraftForApp,
+  hasConfiguredGatewayProviderModels,
+} from "@/lib/gateway/toolConfig";
+import { GATEWAY_PROVIDER_ID } from "@/lib/gateway/constants";
 import {
   useGatewayCreateKeyMutation,
   useGatewayCreatePaymentOrderMutation,
@@ -16,7 +21,9 @@ import {
   useGatewayModelsQuery,
   useGatewayOrdersQuery,
   useGatewayPaymentChannelsQuery,
+  useGatewayProfileQuery,
   useGatewayRegisterMutation,
+  useGatewayRegisterVerificationCodeMutation,
   useGatewaySelectKeyMutation,
   useGatewaySessionQuery,
   useGatewayStatsQuery,
@@ -28,16 +35,17 @@ import { extractErrorMessage } from "@/utils/errorUtils";
 import {
   GatewayAuthPage,
   type GatewayAuthCredentials,
+  type GatewayRegisterCredentials,
 } from "./GatewayAuthPage";
 import { GatewayDashboard } from "./GatewayDashboard";
-import type { VisibleApps } from "@/types";
+import type { Provider, VisibleApps } from "@/types";
 
 interface GatewayAppProps {
   activeApp: AppId;
   visibleApps?: VisibleApps;
   onSwitchApp: (appId: AppId) => void;
   onOpenAdvancedProviders: () => void;
-  onEditToolProvider: (appId: AppId) => void;
+  onEditToolProvider: (appId: AppId, draftProvider?: Provider) => void;
 }
 
 export function GatewayApp({
@@ -50,10 +58,14 @@ export function GatewayApp({
   const [isApplyingToolConfig, setIsApplyingToolConfig] = useState(false);
   const queryClient = useQueryClient();
   const sessionQuery = useGatewaySessionQuery();
-  const hasSession = Boolean(sessionQuery.data?.accessToken);
+  const hasStoredSession = Boolean(sessionQuery.data?.accessToken);
+  const profileQuery = useGatewayProfileQuery(hasStoredSession);
+  const hasSession = hasStoredSession && profileQuery.isSuccess;
 
   const loginMutation = useGatewayLoginMutation();
   const registerMutation = useGatewayRegisterMutation();
+  const registerVerificationCodeMutation =
+    useGatewayRegisterVerificationCodeMutation();
   const logoutMutation = useGatewayLogoutMutation();
   const createKeyMutation = useGatewayCreateKeyMutation();
   const updateKeyMutation = useGatewayUpdateKeyMutation();
@@ -87,12 +99,22 @@ export function GatewayApp({
     }
   };
 
-  const handleRegister = async (credentials: GatewayAuthCredentials) => {
+  const handleRegister = async (credentials: GatewayRegisterCredentials) => {
     try {
       await registerMutation.mutateAsync(credentials);
       toast.success("注册成功");
     } catch (error) {
       toast.error(extractErrorMessage(error) || "注册失败");
+    }
+  };
+
+  const handleSendRegisterCode = async (email: string) => {
+    try {
+      await registerVerificationCodeMutation.mutateAsync({ email });
+      toast.success("验证码已发送，请查看邮箱");
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || "发送验证码失败");
+      throw error;
     }
   };
 
@@ -143,12 +165,43 @@ export function GatewayApp({
       toast.warning("Key 待创建或不可用");
       return;
     }
+
+    const models = modelsQuery.data ?? [];
+    if (targetApp === "claude" || targetApp === "claude-desktop") {
+      try {
+        const providerMap = await providersApi.getAll(targetApp);
+        const gatewayProvider = providerMap[GATEWAY_PROVIDER_ID];
+        if (hasConfiguredGatewayProviderModels(targetApp, gatewayProvider)) {
+          setIsApplyingToolConfig(true);
+          await providersApi.switch(GATEWAY_PROVIDER_ID, targetApp);
+          await queryClient.invalidateQueries({
+            queryKey: ["providers", targetApp],
+          });
+          toast.success("已写入本地工具配置");
+          return;
+        }
+
+        const draftProvider =
+          gatewayProvider ??
+          buildGatewayProviderDraftForApp(targetApp, selectedKey.secret);
+        onSwitchApp(targetApp);
+        onEditToolProvider(targetApp, draftProvider);
+        toast.warning("请先配置模型映射后再写入工具配置");
+        return;
+      } catch (error) {
+        toast.error(extractErrorMessage(error) || "读取工具配置失败");
+        return;
+      } finally {
+        setIsApplyingToolConfig(false);
+      }
+    }
+
     try {
       setIsApplyingToolConfig(true);
       await applyGatewayToolConfig({
         appId: targetApp,
         apiKey: selectedKey.secret,
-        models: modelsQuery.data ?? [],
+        models,
       });
       await queryClient.invalidateQueries({
         queryKey: ["providers", targetApp],
@@ -181,7 +234,10 @@ export function GatewayApp({
     }
   };
 
-  if (sessionQuery.isLoading) {
+  if (
+    sessionQuery.isLoading ||
+    (hasStoredSession && profileQuery.isLoading)
+  ) {
     return (
       <main className="flex min-h-full items-center justify-center px-6">
         <div className="rounded-lg border border-border-default bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
@@ -198,9 +254,11 @@ export function GatewayApp({
     return (
       <GatewayAuthPage
         isLoading={loginMutation.isPending || registerMutation.isPending}
+        isSendingVerificationCode={registerVerificationCodeMutation.isPending}
         error={authError}
         onLogin={handleLogin}
         onRegister={handleRegister}
+        onSendRegisterCode={handleSendRegisterCode}
       />
     );
   }

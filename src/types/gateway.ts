@@ -14,6 +14,12 @@ export type GatewaySession = {
   user?: GatewayUser;
 };
 
+export type GatewayRegisterCredentials = {
+  email: string;
+  password: string;
+  verificationCode: string;
+};
+
 export type GatewayApiKey = {
   id: string;
   name: string;

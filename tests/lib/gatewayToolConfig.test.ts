@@ -54,16 +54,16 @@ describe("THQ gateway tool config", () => {
     );
   });
 
-  it("pins Codex gateway config below the upstream truncation point", () => {
+  it("does not override Codex context size by default", () => {
     const provider = buildGatewayProviderForApp("codex", {
       apiKey: "sk-thq",
       models: [{ id: "gpt-5.5", name: "GPT-5.5", enabled: true }],
     });
     const config = String(provider.settingsConfig.config);
 
-    expect(config).toContain("model_context_window = 600000");
-    expect(config).toContain("model_auto_compact_token_limit = 220000");
-    expect(config).toContain('model_auto_compact_token_limit_scope = "total"');
+    expect(config).not.toContain("model_context_window");
+    expect(config).not.toContain("model_auto_compact_token_limit");
+    expect(config).not.toContain("model_auto_compact_token_limit_scope");
     expect(config).not.toContain("disable_response_storage");
   });
 

@@ -25,6 +25,57 @@ const modelIds = (models: GatewayModel[]): string[] => {
   return ids.length > 0 ? ids : [GATEWAY_DEFAULT_MODEL];
 };
 
+const hasMeaningfulClaudeModel = (values: unknown[]): boolean => {
+  const configured = values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return (
+    configured.length > 0 &&
+    configured.some((value) => value !== GATEWAY_DEFAULT_CLAUDE_MODEL)
+  );
+};
+
+const hasAnyClaudeModel = (values: unknown[]): boolean =>
+  values.some((value) => typeof value === "string" && Boolean(value.trim()));
+
+export const hasConfiguredGatewayProviderModels = (
+  appId: AppId,
+  provider: Provider | undefined,
+): boolean => {
+  if (!provider) return false;
+
+  if (appId === "claude") {
+    const env = provider.settingsConfig.env;
+    if (!env || typeof env !== "object") return false;
+
+    const values = [
+      env.ANTHROPIC_MODEL,
+      env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+      env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+      env.ANTHROPIC_DEFAULT_OPUS_MODEL,
+    ];
+
+    return provider.meta?.gatewayModelMappingConfigured
+      ? hasAnyClaudeModel(values)
+      : hasMeaningfulClaudeModel(values);
+  }
+
+  if (appId === "claude-desktop") {
+    const routes = provider.meta?.claudeDesktopModelRoutes;
+    if (!routes || typeof routes !== "object") return false;
+
+    const values = Object.values(routes).map((route) => route?.model);
+
+    return provider.meta?.gatewayModelMappingConfigured
+      ? hasAnyClaudeModel(values)
+      : hasMeaningfulClaudeModel(values);
+  }
+
+  return true;
+};
+
 const namedModel = (models: GatewayModel[], fallback: string): string =>
   modelIds(models)[0] ?? fallback;
 
@@ -63,9 +114,6 @@ const buildCodexConfig = (models: GatewayModel[]): string => {
   return `model_provider = "custom"
 model = ${tomlString(model)}
 model_reasoning_effort = "high"
-model_context_window = 600000
-model_auto_compact_token_limit = 220000
-model_auto_compact_token_limit_scope = "total"
 
 [model_providers.custom]
 name = "THQ"
@@ -203,4 +251,33 @@ export const buildGatewayProviderForApp = (
       base_url: GATEWAY_MODEL_BASE_URL,
     })),
   });
+};
+
+export const buildGatewayProviderDraftForApp = (
+  appId: AppId,
+  apiKey: string,
+): Provider => {
+  const provider = buildGatewayProviderForApp(appId, {
+    apiKey,
+    models: [],
+  });
+
+  if (appId === "claude" || appId === "claude-desktop") {
+    const env = provider.settingsConfig.env;
+    if (env && typeof env === "object") {
+      delete env.ANTHROPIC_MODEL;
+      delete env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+      delete env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+      delete env.ANTHROPIC_DEFAULT_OPUS_MODEL;
+    }
+  }
+
+  if (appId === "claude-desktop") {
+    provider.meta = {
+      ...(provider.meta ?? {}),
+      claudeDesktopModelRoutes: {},
+    };
+  }
+
+  return provider;
 };

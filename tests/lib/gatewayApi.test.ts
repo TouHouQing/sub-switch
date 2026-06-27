@@ -169,6 +169,72 @@ describe("GatewayApiClient", () => {
     );
   });
 
+  it("requests a register email verification code", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await client.sendRegisterVerificationCode("new@tohoqing.com");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/auth/send-verify-code",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "new@tohoqing.com",
+        }),
+      }),
+    );
+  });
+
+  it("normalizes email before sending verification code requests", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await client.sendRegisterVerificationCode("  new@tohoqing.com\u200b ");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/auth/send-verify-code",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "new@tohoqing.com",
+        }),
+      }),
+    );
+  });
+
+  it("registers with the email verification code payload", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          access_token: "access-new",
+          refresh_token: "refresh-new",
+          expires_in: 3600,
+        },
+      }),
+    );
+
+    await client.register({
+      email: "new@tohoqing.com",
+      password: "minimum-eight",
+      verificationCode: "123456",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sub.tohoqing.com/api/v1/auth/register",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "new@tohoqing.com",
+          password: "minimum-eight",
+          verify_code: "123456",
+          verification_code: "123456",
+          email_code: "123456",
+          code: "123456",
+        }),
+      }),
+    );
+    expect(session?.accessToken).toBe("access-new");
+  });
+
   it("uses the model base URL and provided API key for model requests", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: [] }));
 
@@ -471,6 +537,31 @@ describe("GatewayApiClient", () => {
     );
   });
 
+  it("clears the session when a management request remains unauthorized after refresh", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: "expired" }, 401))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          accessToken: "fresh-access",
+          refreshToken: "fresh-refresh",
+          expiresAt: Date.now() + 3_600_000,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ message: "unauthorized" }, 401));
+
+    await expect(client.profile()).rejects.toThrow("unauthorized");
+
+    expect(session).toBeNull();
+  });
+
+  it("clears the session when a management request is forbidden", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: "forbidden" }, 403));
+
+    await expect(client.profile()).rejects.toThrow("forbidden");
+
+    expect(session).toBeNull();
+  });
+
   it("keeps the session when refresh hits a temporary server error", async () => {
     const previousSession = {
       accessToken: "almost-expired",
@@ -563,23 +654,10 @@ describe("GatewayApiClient", () => {
     ).toBe(false);
   });
 
-  it("handles empty successful Tauri gateway responses", async () => {
-    server.use(
-      http.post("http://tauri.local/gateway_http_request", () =>
-        HttpResponse.json({ status: 204, body: null }),
-      ),
-    );
+  it("clears the local session without calling the remote logout endpoint", async () => {
+    await expect(client.logout()).resolves.toBeUndefined();
 
-    const defaultClient = new GatewayApiClient({
-      loadSession: () => session,
-      saveSession: (nextSession) => {
-        session = nextSession;
-      },
-      clearSession: () => {
-        session = null;
-      },
-    });
-
-    await expect(defaultClient.logout()).resolves.toBeUndefined();
+    expect(session).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

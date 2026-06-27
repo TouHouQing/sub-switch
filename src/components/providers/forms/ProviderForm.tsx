@@ -100,6 +100,7 @@ import {
   useCopilotAuth,
   useCodexOauth,
 } from "./hooks";
+import { stripClaudeOneMMarker } from "./hooks/useModelState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useSettingsQuery } from "@/lib/query";
 import {
@@ -974,6 +975,24 @@ function ProviderFormFull({
       return;
     }
 
+    if (isToolRouteAdvancedMode && appId === "claude") {
+      const hasModelMapping = [
+        claudeModel,
+        defaultHaikuModel,
+        defaultSonnetModel,
+        defaultOpusModel,
+      ].some((model) => Boolean(stripClaudeOneMMarker(model).trim()));
+
+      if (!hasModelMapping) {
+        toast.error(
+          t("providerForm.modelMappingRequired", {
+            defaultValue: "请先填写至少一个模型映射",
+          }),
+        );
+        return;
+      }
+    }
+
     // opencode / openclaw / hermes: providerKey 相关
     // A 类（空）归到 issues；B 类（正则不合法 / 重复 / 状态加载中）仍硬拒绝
     const keyPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1417,6 +1436,10 @@ function ProviderFormFull({
               : appId === "codex" && category !== "official"
                 ? localCodexApiFormat
                 : baseMeta?.apiFormat,
+          gatewayModelMappingConfigured:
+            appId === "claude"
+              ? true
+              : baseMeta?.gatewayModelMappingConfigured,
         }
       : {
           ...(baseMeta ?? {}),

@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GatewayApp } from "@/components/gateway/GatewayApp";
 import { GATEWAY_PROVIDER_ID } from "@/lib/gateway/constants";
 import { createTestQueryClient } from "../utils/testQueryClient";
@@ -11,6 +11,18 @@ const apiMocks = vi.hoisted(() => ({
   update: vi.fn(),
   switchProvider: vi.fn(),
   settingsOpenExternal: vi.fn(),
+}));
+
+const gatewayQueryState = vi.hoisted(() => ({
+  session: {
+    isLoading: false,
+    data: { accessToken: "session-token" } as { accessToken: string } | null,
+  },
+  profile: {
+    isLoading: false,
+    isSuccess: true,
+    error: null as Error | null,
+  },
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -40,12 +52,14 @@ vi.mock("@/hooks/useProxyStatus", () => ({
 }));
 
 vi.mock("@/lib/query/gateway", () => ({
-  useGatewaySessionQuery: () => ({
-    isLoading: false,
-    data: { accessToken: "session-token" },
-  }),
+  useGatewaySessionQuery: () => gatewayQueryState.session,
+  useGatewayProfileQuery: () => gatewayQueryState.profile,
   useGatewayLoginMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useGatewayRegisterMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useGatewayRegisterVerificationCodeMutation: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
@@ -91,6 +105,66 @@ vi.mock("@/lib/query/gateway", () => ({
 }));
 
 describe("GatewayApp", () => {
+  beforeEach(() => {
+    gatewayQueryState.session = {
+      isLoading: false,
+      data: { accessToken: "session-token" },
+    };
+    gatewayQueryState.profile = {
+      isLoading: false,
+      isSuccess: true,
+      error: null,
+    };
+    apiMocks.getAll.mockReset();
+    apiMocks.add.mockReset();
+    apiMocks.update.mockReset();
+    apiMocks.switchProvider.mockReset();
+    apiMocks.settingsOpenExternal.mockReset();
+  });
+
+  it("shows the login page when no gateway session exists", () => {
+    gatewayQueryState.session = {
+      isLoading: false,
+      data: null,
+    };
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <GatewayApp
+          activeApp="codex"
+          onSwitchApp={vi.fn()}
+          onOpenAdvancedProviders={vi.fn()}
+          onEditToolProvider={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "閰嶇疆鍒?Codex" })).toBeNull();
+  });
+
+  it("keeps the login page visible when the stored session is not verified", () => {
+    gatewayQueryState.profile = {
+      isLoading: false,
+      isSuccess: false,
+      error: new Error("unauthorized"),
+    };
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <GatewayApp
+          activeApp="codex"
+          onSwitchApp={vi.fn()}
+          onOpenAdvancedProviders={vi.fn()}
+          onEditToolProvider={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "閰嶇疆鍒?Codex" })).toBeNull();
+  });
+
   it("refreshes provider cache after applying a tool config before edit", async () => {
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -129,5 +203,89 @@ describe("GatewayApp", () => {
       queryKey: ["providers", "codex"],
     });
     expect(handleSwitchApp).toHaveBeenCalledWith("codex");
+  });
+
+  it("opens Claude Code model mapping editor before applying an unconfigured route", async () => {
+    const handleEditToolProvider = vi.fn();
+    const handleSwitchApp = vi.fn();
+
+    apiMocks.getAll.mockResolvedValue({});
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <GatewayApp
+          activeApp="claude"
+          onSwitchApp={handleSwitchApp}
+          onOpenAdvancedProviders={vi.fn()}
+          onEditToolProvider={handleEditToolProvider}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "配置到 Claude Code" }));
+
+    await waitFor(() => {
+      expect(handleEditToolProvider).toHaveBeenCalledWith(
+        "claude",
+        expect.objectContaining({
+          id: GATEWAY_PROVIDER_ID,
+          settingsConfig: expect.objectContaining({
+            env: expect.not.objectContaining({
+              ANTHROPIC_MODEL: expect.any(String),
+              ANTHROPIC_DEFAULT_SONNET_MODEL: expect.any(String),
+            }),
+          }),
+        }),
+      );
+    });
+    expect(handleSwitchApp).toHaveBeenCalledWith("claude");
+    expect(apiMocks.add).not.toHaveBeenCalled();
+    expect(apiMocks.switchProvider).not.toHaveBeenCalled();
+  });
+
+  it("switches Claude Code to an existing gateway provider when model mapping is configured", async () => {
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const handleEditToolProvider = vi.fn();
+
+    apiMocks.getAll.mockResolvedValue({
+      [GATEWAY_PROVIDER_ID]: {
+        id: GATEWAY_PROVIDER_ID,
+        name: "THQ Gateway",
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: "https://sub.tohoqing.com/v1",
+            ANTHROPIC_AUTH_TOKEN: "sk-thq",
+            ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.5",
+          },
+        },
+      },
+    });
+    apiMocks.switchProvider.mockResolvedValue({ warnings: [] });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GatewayApp
+          activeApp="claude"
+          onSwitchApp={vi.fn()}
+          onOpenAdvancedProviders={vi.fn()}
+          onEditToolProvider={handleEditToolProvider}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "配置到 Claude Code" }));
+
+    await waitFor(() => {
+      expect(apiMocks.switchProvider).toHaveBeenCalledWith(
+        GATEWAY_PROVIDER_ID,
+        "claude",
+      );
+    });
+    expect(handleEditToolProvider).not.toHaveBeenCalled();
+    expect(apiMocks.add).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["providers", "claude"],
+    });
   });
 });

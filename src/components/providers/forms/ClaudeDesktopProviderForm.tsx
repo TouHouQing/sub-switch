@@ -698,6 +698,9 @@ export function ClaudeDesktopProviderForm({
       ...(initialData?.meta ?? {}),
       claudeDesktopMode: mode,
       apiFormat: mode === "proxy" ? apiFormat : "anthropic",
+      gatewayModelMappingConfigured: isToolRouteAdvancedMode
+        ? true
+        : initialData?.meta?.gatewayModelMappingConfigured,
     };
 
     meta.claudeDesktopModelRoutes = routeMap;

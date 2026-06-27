@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::store::AppState;
 
 const TEMPLATE_TYPE_OFFICIAL_SUBSCRIPTION: &str = "official_subscription";
+const OFFICIAL_WEBSITE_URL: &str = "https://sub.tohoqing.com";
 const H_TIER_NAMES: &[&str] = &[crate::services::subscription::TIER_FIVE_HOUR];
 const W_TIER_NAMES: &[&str] = &[
     crate::services::subscription::TIER_WEEKLY_LIMIT,
@@ -724,7 +725,7 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             }
         }
         "open_website" => {
-            if let Err(e) = app.opener().open_url("https://ccswitch.io", None::<String>) {
+            if let Err(e) = app.opener().open_url(OFFICIAL_WEBSITE_URL, None::<String>) {
                 log::error!("打开官方网站失败: {e}");
             }
         }

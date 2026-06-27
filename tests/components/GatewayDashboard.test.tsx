@@ -153,6 +153,16 @@ describe("GatewayDashboard", () => {
     expect(screen.queryByText(/当前查看/)).not.toBeInTheDocument();
   });
 
+  it("renders an explicit logout button", () => {
+    const handleLogout = vi.fn();
+
+    render(<GatewayDashboard {...baseProps({ onLogout: handleLogout })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "退出登录" }));
+
+    expect(handleLogout).toHaveBeenCalledTimes(1);
+  });
+
   it("shows tool routes according to the main-page visibility setting", () => {
     render(
       <GatewayDashboard

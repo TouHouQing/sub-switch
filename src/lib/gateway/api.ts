@@ -4,6 +4,7 @@ import {
   GATEWAY_MODEL_BASE_URL,
 } from "@/lib/gateway/constants";
 import { gatewayTauriFetch } from "@/lib/gateway/tauriTransport";
+import { normalizeGatewayEmail } from "@/lib/gateway/email";
 import {
   clearGatewaySession,
   isGatewaySessionExpiring,
@@ -31,6 +32,7 @@ import type {
   GatewayOrder,
   GatewayPaymentChannel,
   GatewayPaymentPlan,
+  GatewayRegisterCredentials,
   GatewaySession,
   GatewayUpdateKeyInput,
   GatewayUsageRecord,
@@ -226,10 +228,11 @@ export class GatewayApiClient {
   }
 
   async login(email: string, password: string): Promise<GatewaySession> {
+    const normalizedEmail = normalizeGatewayEmail(email);
     const session = normalizeSession(
       await this.managementRequest("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
         retryAuth: false,
       }),
     );
@@ -237,11 +240,34 @@ export class GatewayApiClient {
     return session;
   }
 
-  async register(email: string, password: string): Promise<GatewaySession> {
+  async sendRegisterVerificationCode(email: string): Promise<void> {
+    const normalizedEmail = normalizeGatewayEmail(email);
+    await this.managementRequest("/auth/send-verify-code", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizedEmail,
+      }),
+      retryAuth: false,
+    });
+  }
+
+  async register({
+    email,
+    password,
+    verificationCode,
+  }: GatewayRegisterCredentials): Promise<GatewaySession> {
+    const normalizedEmail = normalizeGatewayEmail(email);
     const session = normalizeSession(
       await this.managementRequest("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          verify_code: verificationCode,
+          verification_code: verificationCode,
+          email_code: verificationCode,
+          code: verificationCode,
+        }),
         retryAuth: false,
       }),
     );
@@ -250,11 +276,7 @@ export class GatewayApiClient {
   }
 
   async logout(): Promise<void> {
-    try {
-      await this.managementRequest("/auth/logout", { method: "POST" });
-    } finally {
-      this.clearSession();
-    }
+    this.clearSession();
   }
 
   async me(): Promise<GatewayUser | undefined> {
@@ -387,7 +409,7 @@ export class GatewayApiClient {
 
     const response = await this.fetchImpl(url, requestOptions);
     if (response.status !== 401 || options.retryAuth === false) {
-      return this.readJson(response);
+      return this.readManagementJson(response, options.retryAuth !== false);
     }
 
     const refreshed = await this.refresh();
@@ -395,8 +417,9 @@ export class GatewayApiClient {
       options.headers,
       refreshed.accessToken,
     );
-    return this.readJson(
+    return this.readManagementJson(
       await this.fetchImpl(url, this.toRequestInit(options, retryHeaders)),
+      true,
     );
   }
 
@@ -493,6 +516,24 @@ export class GatewayApiClient {
   private hasHeader(headers: Record<string, string>, name: string): boolean {
     const target = name.toLowerCase();
     return Object.keys(headers).some((key) => key.toLowerCase() === target);
+  }
+
+  private async readManagementJson(
+    response: Response,
+    clearAuthOnUnauthorized: boolean,
+  ): Promise<unknown> {
+    try {
+      return await this.readJson(response);
+    } catch (error) {
+      if (
+        clearAuthOnUnauthorized &&
+        error instanceof GatewayHttpError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        this.clearSession();
+      }
+      throw error;
+    }
   }
 
   private async readJson(response: Response): Promise<unknown> {

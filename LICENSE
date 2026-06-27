@@ -1,21 +1,154 @@
-MIT License
+THQ Switch Source-Available License
+Version 1.0
 
-Copyright (c) 2025 Jason Young
+Copyright (c) 2026 THQ Switch contributors.
+All rights reserved except as expressly granted below.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available license, not an OSI-approved open source license.
+It intentionally restricts commercial use and certain modifications.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This license applies to THQ Switch modifications, branding, distribution
+builds, gateway integrations, and newly added project materials, except where
+a file, dependency, or notice states otherwise. Portions derived from the
+upstream CC Switch project remain subject to the upstream MIT License preserved
+in LICENSES/CC-SWITCH-MIT.txt and referenced in NOTICE.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. Definitions
+
+"Software" means THQ Switch source code, object code, binaries,
+documentation, assets, and related materials that are licensed under this
+license.
+
+"Licensor" means the copyright owner or other party authorized to grant this
+license.
+
+"You" means any individual or legal entity exercising rights under this
+license.
+
+"Official Gateway URL" means https://sub.tohoqing.com and any URL, endpoint,
+constant, default, validation rule, or integration in the Software that points
+to, derives from, protects, or depends on that host, including but not limited
+to authentication, registration, email verification, user profile, payment,
+API-key management, model, and gateway API endpoints.
+
+"Commercial Use" means any use intended for or directed toward commercial
+advantage, monetary compensation, business operations, revenue generation,
+paid services, resale, sublicensing, managed hosting, software-as-a-service,
+consulting delivery, enterprise deployment, or inclusion in a product or
+service offered by or for a business or other for-profit entity.
+
+"Non-Commercial Use" means personal, educational, research, evaluation, or
+internal experimentation that is not Commercial Use.
+
+2. Limited Grant
+
+Subject to this license, the Licensor grants You a limited, worldwide,
+royalty-free, non-exclusive, non-transferable, revocable license to:
+
+a. access, view, inspect, and study the Software;
+b. run the Software for Non-Commercial Use;
+c. copy and modify the Software solely for Non-Commercial Use; and
+d. redistribute source-code copies or source-code modifications solely for
+   Non-Commercial Use, provided that You comply with Section 4.
+
+No other rights are granted.
+
+3. Commercial Restrictions
+
+You may not use, copy, modify, distribute, make available, host, provide,
+sell, rent, lease, sublicense, bundle, or otherwise exploit the Software for
+Commercial Use without prior written permission from the Licensor.
+
+For clarity, the following are prohibited without prior written permission:
+
+a. selling or charging for the Software, modified versions, builds, installers,
+   support, access, hosting, managed services, or integrations;
+b. offering the Software or modified versions as a hosted service, gateway,
+   proxy, API relay, subscription service, SaaS product, or managed platform;
+c. using the Software in production business operations or on behalf of a
+   business, customer, client, employer, contractor, or other commercial
+   organization;
+d. embedding the Software in any commercial product, appliance, marketplace
+   package, cloud image, distribution channel, or paid bundle; and
+e. using the Software to compete with, bypass, clone, or replace the
+   Licensor's official service or gateway.
+
+4. Official Gateway URL and Base URL Restrictions
+
+You may not remove, replace, disable, obscure, bypass, weaken, or modify the
+Official Gateway URL or any related base URL, endpoint, host validation,
+runtime check, user interface, configuration default, build-time constant, or
+transport restriction in the Software.
+
+You may not add, expose, document, or distribute any option, patch, fork,
+configuration, environment variable, build flag, installer, binary, or
+instruction whose purpose or effect is to redirect THQ Gateway functionality
+from the Official Gateway URL to another host, gateway, relay, API service, or
+backend.
+
+You may not distribute a modified version of the Software that changes,
+removes, bypasses, or makes configurable the Official Gateway URL or related
+host protections.
+
+5. Redistribution Conditions
+
+Any permitted redistribution must:
+
+a. be solely for Non-Commercial Use;
+b. include this license text in full;
+c. retain all copyright, license, attribution, trademark, and notice files;
+d. clearly mark any modified files and describe material changes;
+e. not use the Licensor's names, trademarks, logos, domain names, or service
+   names to imply endorsement; and
+f. comply with the Official Gateway URL and Base URL Restrictions in Section 4.
+
+6. Contributions
+
+Unless otherwise agreed in writing, any contribution You submit to the
+Licensor is provided under this license, and You grant the Licensor a
+perpetual, worldwide, royalty-free, irrevocable right to use, copy, modify,
+sublicense, relicense, distribute, and commercialize that contribution.
+
+7. Third-Party Components
+
+Third-party dependencies, libraries, assets, and tools included with or used
+by the Software remain subject to their own licenses. This license does not
+grant rights to third-party materials beyond what their respective licenses
+allow.
+
+8. Termination
+
+Your rights under this license terminate automatically if You violate any
+term. Upon termination, You must stop using, copying, modifying, distributing,
+hosting, or making the Software available, and You must delete or destroy all
+copies under Your control unless otherwise required by law.
+
+Sections intended to survive termination, including Sections 3 through 12,
+will survive.
+
+9. No Trademark License
+
+This license does not grant permission to use the Licensor's trade names,
+trademarks, service marks, logos, domain names, branding, or product names
+except as necessary for unmodified attribution notices.
+
+10. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+NON-INFRINGEMENT, SECURITY, AVAILABILITY, OR ERROR-FREE OPERATION.
+
+11. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR AND CONTRIBUTORS WILL
+NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA,
+GOODWILL, OR BUSINESS OPPORTUNITY, ARISING OUT OF OR RELATED TO THE SOFTWARE
+OR THIS LICENSE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+12. Separate Commercial License
+
+Commercial Use, modifications to the Official Gateway URL, or other uses not
+permitted by this license require a separate written commercial license or
+written permission from the Licensor.

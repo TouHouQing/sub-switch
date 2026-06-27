@@ -762,7 +762,9 @@ impl UniversalProvider {
             r#"model_provider = "custom"
 model = "{model}"
 model_reasoning_effort = "{reasoning_effort}"
-disable_response_storage = true
+model_context_window = 600000
+model_auto_compact_token_limit = 220000
+model_auto_compact_token_limit_scope = "total"
 
 [model_providers.custom]
 name = "NewAPI"
@@ -1165,6 +1167,30 @@ mod tests {
             .expect("config toml");
 
         assert!(config.contains("base_url = \"https://api.example.com/v1\""));
+    }
+
+    #[test]
+    fn universal_provider_to_codex_provider_pins_auto_compaction() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.codex = true;
+
+        let provider = universal.to_codex_provider().expect("codex provider");
+        let config = provider
+            .settings_config
+            .get("config")
+            .and_then(|item| item.as_str())
+            .expect("config toml");
+
+        assert!(config.contains("model_context_window = 600000"));
+        assert!(config.contains("model_auto_compact_token_limit = 220000"));
+        assert!(config.contains("model_auto_compact_token_limit_scope = \"total\""));
+        assert!(!config.contains("disable_response_storage"));
     }
 
     #[test]

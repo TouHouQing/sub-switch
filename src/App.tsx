@@ -235,6 +235,7 @@ function App() {
   const [editingProviderVariant, setEditingProviderVariant] = useState<
     "default" | "tool-route-advanced"
   >("default");
+  const [editingProviderIsDraft, setEditingProviderIsDraft] = useState(false);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     provider: Provider;
@@ -264,6 +265,16 @@ function App() {
     status: proxyStatus,
   } = useProxyStatus();
   const isCurrentAppTakeoverActive = takeoverStatus?.[activeApp] || false;
+  const canShowHeaderRouteToggle =
+    activeApp === "claude" ||
+    activeApp === "claude-desktop" ||
+    activeApp === "codex" ||
+    activeApp === "gemini";
+  const canShowHeaderFailoverToggle =
+    activeApp === "claude" || activeApp === "codex" || activeApp === "gemini";
+  const shouldShowHeaderRouteControls =
+    (currentView === "gateway" || currentView === "providers") &&
+    canShowHeaderRouteToggle;
   const activeProviderId = useMemo(() => {
     const target = proxyStatus?.active_targets?.find(
       (t) => t.app_type === activeApp,
@@ -630,6 +641,35 @@ function App() {
     provider: Provider;
     originalId?: string;
   }) => {
+    const targetApp = editingProviderApp ?? activeApp;
+
+    if (editingProviderIsDraft) {
+      await providersApi.add(provider, targetApp, true);
+      await providersApi.switch(provider.id, targetApp);
+      await queryClient.invalidateQueries({
+        queryKey: ["providers", targetApp],
+      });
+      try {
+        await providersApi.updateTrayMenu();
+      } catch (trayError) {
+        console.error(
+          "Failed to update tray menu after adding provider",
+          trayError,
+        );
+      }
+      toast.success(
+        t("notifications.updateSuccess", {
+          defaultValue: "供应商更新成功",
+        }),
+        { closeButton: true },
+      );
+      setEditingProvider(null);
+      setEditingProviderApp(null);
+      setEditingProviderVariant("default");
+      setEditingProviderIsDraft(false);
+      return;
+    }
+
     if (editingProviderApp && editingProviderApp !== activeApp) {
       await providersApi.update(provider, editingProviderApp, originalId);
       await queryClient.invalidateQueries({
@@ -652,6 +692,7 @@ function App() {
       setEditingProvider(null);
       setEditingProviderApp(null);
       setEditingProviderVariant("default");
+      setEditingProviderIsDraft(false);
       return;
     }
 
@@ -659,20 +700,26 @@ function App() {
     setEditingProvider(null);
     setEditingProviderApp(null);
     setEditingProviderVariant("default");
+    setEditingProviderIsDraft(false);
   };
 
-  const handleOpenToolProviderEditor = async (appId: AppId) => {
+  const handleOpenToolProviderEditor = async (
+    appId: AppId,
+    draftProvider?: Provider,
+  ) => {
     try {
       const providerMap = await providersApi.getAll(appId);
       const provider = providerMap[GATEWAY_PROVIDER_ID];
-      if (!provider) {
+      const editableProvider = provider ?? draftProvider;
+      if (!editableProvider) {
         toast.warning("请先配置到该工具后再编辑高级选项");
         return;
       }
 
-      setEditingProvider(provider);
+      setEditingProvider(editableProvider);
       setEditingProviderApp(appId);
       setEditingProviderVariant("tool-route-advanced");
+      setEditingProviderIsDraft(!provider && Boolean(draftProvider));
       setActiveApp(appId);
     } catch (error) {
       toast.error(extractErrorMessage(error) || "打开工具配置失败");
@@ -922,8 +969,8 @@ function App() {
               visibleApps={visibleApps}
               onSwitchApp={setActiveApp}
               onOpenAdvancedProviders={() => setCurrentView("providers")}
-              onEditToolProvider={(appId) =>
-                void handleOpenToolProviderEditor(appId)
+              onEditToolProvider={(appId, draftProvider) =>
+                void handleOpenToolProviderEditor(appId, draftProvider)
               }
             />
           );
@@ -1025,6 +1072,7 @@ function App() {
                         setEditingProvider(provider);
                         setEditingProviderApp(activeApp);
                         setEditingProviderVariant("default");
+                        setEditingProviderIsDraft(false);
                       }}
                       onDelete={(provider) =>
                         setConfirmAction({ provider, action: "delete" })
@@ -1283,10 +1331,7 @@ function App() {
           </div>
 
           <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
-            {currentView === "providers" &&
-              activeApp !== "opencode" &&
-              activeApp !== "openclaw" &&
-              activeApp !== "hermes" && (
+            {shouldShowHeaderRouteControls && (
                 <div
                   className="flex shrink-0 items-center gap-1.5"
                   style={{ WebkitAppRegion: "no-drag" } as any}
@@ -1298,7 +1343,7 @@ function App() {
                       <ProxyToggle activeApp={activeApp} />
                     )
                   )}
-                  {activeApp !== "claude-desktop" &&
+                  {canShowHeaderFailoverToggle &&
                     settingsData?.enableFailoverToggle && (
                       <FailoverToggle activeApp={activeApp} />
                     )}
@@ -1618,6 +1663,7 @@ function App() {
             setEditingProvider(null);
             setEditingProviderApp(null);
             setEditingProviderVariant("default");
+            setEditingProviderIsDraft(false);
           }
         }}
         onSubmit={handleEditProvider}

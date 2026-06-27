@@ -78,6 +78,7 @@ type WslShellPreference = {
 const WSL_SHELL_OPTIONS = ["sh", "bash", "zsh", "fish", "dash"] as const;
 // UI-friendly order: login shell first.
 const WSL_SHELL_FLAG_OPTIONS = ["-lic", "-lc", "-c"] as const;
+const TOOL_VERSION_LOAD_TIMEOUT_MS = 15000;
 
 const ENV_BADGE_CONFIG: Record<
   string,
@@ -178,12 +179,32 @@ const TOOL_APP_IDS: Record<ToolName, AppId> = {
   hermes: "hermes",
 };
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
 export function AboutSection({ isPortable }: AboutSectionProps) {
   // ... (use hooks as before) ...
   const { t } = useTranslation();
   const [version, setVersion] = useState<string | null>(null);
   const [isLoadingVersion, setIsLoadingVersion] = useState(true);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [toolVersions, setToolVersions] = useState<ToolVersion[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(true);
   const [toolActions, setToolActions] = useState<
@@ -194,8 +215,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   );
   const [showInstallCommands, setShowInstallCommands] = useState(false);
 
-  const { hasUpdate, updateInfo, checkUpdate, resetDismiss, isChecking } =
-    useUpdate();
+  const { hasUpdate, updateInfo, checkUpdate, isChecking } = useUpdate();
 
   const [wslShellByTool, setWslShellByTool] = useState<
     Record<string, WslShellPreference>
@@ -252,9 +272,10 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       });
 
       try {
-        const updated = await settingsApi.getToolVersions(
-          toolNames,
-          wslOverrides,
+        const updated = await withTimeout(
+          settingsApi.getToolVersions(toolNames, wslOverrides),
+          TOOL_VERSION_LOAD_TIMEOUT_MS,
+          `tool version refresh (${toolNames.join(", ")})`,
         );
 
         setToolVersions((prev) => {
@@ -288,9 +309,10 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     setIsLoadingTools(true);
     try {
       // Respect current UI overrides (shell / flag) when doing a full refresh.
-      const versions = await settingsApi.getToolVersions(
-        [...TOOL_NAMES],
-        wslShellByTool,
+      const versions = await withTimeout(
+        settingsApi.getToolVersions([...TOOL_NAMES], wslShellByTool),
+        TOOL_VERSION_LOAD_TIMEOUT_MS,
+        "tool version load",
       );
       setToolVersions(versions);
     } catch (error) {
@@ -325,12 +347,9 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
+    const loadVersion = async () => {
       try {
-        const [appVersion] = await Promise.all([
-          getVersion(),
-          loadAllToolVersions(),
-        ]);
+        const appVersion = await getVersion();
 
         if (active) {
           setVersion(appVersion);
@@ -347,10 +366,14 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       }
     };
 
-    void load();
+    void loadVersion();
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    void loadAllToolVersions();
     // Mount-only: loadAllToolVersions is intentionally excluded to avoid
     // re-fetching all tools whenever wslShellByTool changes. Single-tool
     // refreshes are handled by refreshToolVersions in the shell/flag handlers.
@@ -386,38 +409,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
   const handleCheckUpdate = useCallback(async () => {
     if (hasUpdate) {
-      if (isPortable) {
-        try {
-          await settingsApi.checkUpdates();
-        } catch (error) {
-          console.error("[AboutSection] Portable update failed", error);
-        }
-        return;
-      }
-
-      setIsDownloading(true);
       try {
-        resetDismiss();
-        const installed = await settingsApi.installUpdateAndRestart();
-        if (!installed) {
-          toast.success(t("settings.upToDate"), { closeButton: true });
-        }
+        await settingsApi.openExternal(
+          `https://github.com/TouHouQing/sub-switch/releases/tag/v${updateInfo?.availableVersion ?? ""}`,
+        );
       } catch (error) {
-        console.error("[AboutSection] Update failed", error);
-        toast.error(t("settings.updateFailed"), {
-          description: extractErrorMessage(error) || undefined,
-          closeButton: true,
-        });
-        try {
-          await settingsApi.checkUpdates();
-        } catch (fallbackError) {
-          console.error(
-            "[AboutSection] Failed to open fallback updater",
-            fallbackError,
-          );
-        }
-      } finally {
-        setIsDownloading(false);
+        console.error("[AboutSection] Failed to open update release", error);
+        toast.error(t("settings.openReleaseNotesFailed"));
       }
       return;
     }
@@ -431,7 +429,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
       console.error("[AboutSection] Check update failed", error);
       toast.error(t("settings.checkUpdateFailed"));
     }
-  }, [checkUpdate, hasUpdate, isPortable, resetDismiss, t]);
+  }, [checkUpdate, hasUpdate, t, updateInfo?.availableVersion]);
 
   const handleCopyInstallCommands = useCallback(async () => {
     try {
@@ -799,7 +797,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               variant="outline"
               size="sm"
               onClick={() =>
-                settingsApi.openExternal("https://github.com/TouHouQing/sub-switch")
+                settingsApi.openExternal("https://sub.tohoqing.com")
               }
               className="h-8 gap-1.5 text-xs"
             >
@@ -811,9 +809,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               variant="outline"
               size="sm"
               onClick={() =>
-                settingsApi.openExternal(
-                  "https://github.com/TouHouQing/sub-switch",
-                )
+                settingsApi.openExternal("https://github.com/TouHouQing/sub-switch")
               }
               className="h-8 gap-1.5 text-xs"
             >
@@ -834,15 +830,10 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               type="button"
               size="sm"
               onClick={handleCheckUpdate}
-              disabled={isChecking || isDownloading}
+              disabled={isChecking}
               className="h-8 gap-1.5 text-xs"
             >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {t("settings.updating")}
-                </>
-              ) : hasUpdate ? (
+              {hasUpdate ? (
                 <>
                   <Download className="h-3.5 w-3.5" />
                   {t("settings.updateTo", {

@@ -6,6 +6,7 @@ import {
   FileText,
   Gauge,
   Hash,
+  Image,
   LineChart,
   Loader2,
   LogOut,
@@ -24,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatGatewayNumber } from "@/components/gateway/format";
 import type { AppId } from "@/lib/api";
-import type { VisibleApps } from "@/types";
+import type { Provider, VisibleApps } from "@/types";
 import type {
   GatewayApiKey,
   GatewayCreatePaymentOrderInput,
@@ -75,7 +76,7 @@ export interface GatewayDashboardProps {
   onOpenExternal: (url: string) => void;
   onLogout: () => void;
   onOpenAdvancedProviders: () => void;
-  onEditToolProvider: (appId: AppId) => void;
+  onEditToolProvider: (appId: AppId, draftProvider?: Provider) => void;
 }
 
 export function GatewayDashboard({
@@ -185,6 +186,16 @@ export function GatewayDashboard({
                 variant="outline"
                 size="sm"
                 className="bg-white"
+                onClick={() => onOpenExternal("https://img.tohoqing.com")}
+              >
+                <Image className="h-4 w-4" />
+                生图
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="bg-white"
                 onClick={() =>
                   document
                     .getElementById("gateway-usage-records")
@@ -233,12 +244,13 @@ export function GatewayDashboard({
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
+                size="sm"
                 className="bg-white"
                 onClick={onLogout}
                 aria-label="退出登录"
               >
                 <LogOut className="h-4 w-4" />
+                退出登录
               </Button>
             </div>
           </div>

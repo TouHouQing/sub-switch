@@ -1,0 +1,23 @@
+THQ Switch Notices
+
+THQ Switch is a derived project based on CC Switch.
+
+Portions of this repository are derived from CC Switch, originally licensed
+under the MIT License:
+
+  Copyright (c) 2025 Jason Young
+
+The upstream MIT License text is preserved in:
+
+  LICENSES/CC-SWITCH-MIT.txt
+
+Unless a file or dependency states otherwise, THQ Switch modifications,
+branding, distribution builds, gateway integrations, and newly added project
+materials are licensed under the THQ Switch Source-Available License v1.0 in
+the root LICENSE file.
+
+The THQ Switch Source-Available License is not an OSI-approved open source
+license. It intentionally restricts commercial use and prohibits removing,
+replacing, bypassing, or making configurable the official gateway URL:
+
+  https://sub.tohoqing.com

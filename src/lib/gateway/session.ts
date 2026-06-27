@@ -14,13 +14,23 @@ const isGatewaySession = (value: unknown): value is GatewaySession => {
   );
 };
 
+export const isGatewaySessionExpired = (
+  session: GatewaySession,
+  now = Date.now(),
+): boolean => session.expiresAt <= now;
+
 export const loadGatewaySession = (): GatewaySession | null => {
   try {
     const raw = localStorage.getItem(GATEWAY_SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
-    return isGatewaySession(parsed) ? parsed : null;
+    if (!isGatewaySession(parsed)) {
+      localStorage.removeItem(GATEWAY_SESSION_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
   } catch {
+    localStorage.removeItem(GATEWAY_SESSION_STORAGE_KEY);
     return null;
   }
 };

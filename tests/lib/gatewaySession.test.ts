@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { GATEWAY_SESSION_STORAGE_KEY } from "@/lib/gateway/constants";
 import {
   clearGatewaySession,
+  isGatewaySessionExpired,
   isGatewaySessionExpiring,
   loadGatewaySession,
   saveGatewaySession,
@@ -16,7 +17,7 @@ describe("gateway session storage", () => {
     const session = {
       accessToken: "access",
       refreshToken: "refresh",
-      expiresAt: 1_800_000,
+      expiresAt: Date.now() + 1_800_000,
       user: { id: "u1", email: "a@example.com" },
     };
 
@@ -30,6 +31,7 @@ describe("gateway session storage", () => {
   it("returns null for malformed or incomplete stored session data", () => {
     localStorage.setItem(GATEWAY_SESSION_STORAGE_KEY, "{bad json");
     expect(loadGatewaySession()).toBeNull();
+    expect(localStorage.getItem(GATEWAY_SESSION_STORAGE_KEY)).toBeNull();
 
     localStorage.setItem(
       GATEWAY_SESSION_STORAGE_KEY,
@@ -46,6 +48,40 @@ describe("gateway session storage", () => {
       }),
     );
     expect(loadGatewaySession()).toBeNull();
+  });
+
+  it("keeps structurally valid expired sessions so requests can refresh them", () => {
+    const session = {
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresAt: Date.now() - 1,
+    };
+    localStorage.setItem(
+      GATEWAY_SESSION_STORAGE_KEY,
+      JSON.stringify(session),
+    );
+
+    expect(loadGatewaySession()).toEqual(session);
+  });
+
+  it("detects expired sessions", () => {
+    const now = 1_000_000;
+
+    expect(
+      isGatewaySessionExpired({
+        accessToken: "access",
+        refreshToken: "refresh",
+        expiresAt: now,
+      }, now),
+    ).toBe(true);
+
+    expect(
+      isGatewaySessionExpired({
+        accessToken: "access",
+        refreshToken: "refresh",
+        expiresAt: now + 1,
+      }, now),
+    ).toBe(false);
   });
 
   it("treats sessions expiring within five minutes as expiring", () => {

@@ -5,7 +5,7 @@ import { ProviderIcon } from "@/components/ProviderIcon";
 import { GATEWAY_MODEL_BASE_URL } from "@/lib/gateway/constants";
 import { cn } from "@/lib/utils";
 import type { AppId } from "@/lib/api";
-import type { VisibleApps } from "@/types";
+import type { Provider, VisibleApps } from "@/types";
 import type { GatewayApiKey, GatewayModel } from "@/types/gateway";
 
 interface GatewayToolSwitcherProps {
@@ -16,7 +16,7 @@ interface GatewayToolSwitcherProps {
   isApplying: boolean;
   onSwitchApp: (appId: AppId) => void;
   onApplyToolConfig: (appId: AppId) => void;
-  onEditToolProvider: (appId: AppId) => void;
+  onEditToolProvider: (appId: AppId, draftProvider?: Provider) => void;
 }
 
 const defaultVisibleApps: VisibleApps = {
@@ -39,7 +39,7 @@ const toolRoutes: Array<{
     id: "claude",
     name: "Claude Code",
     icon: "claude",
-    description: "写入 THQ Provider，并保留可恢复的本地配置。",
+    description: "将 Claude Code 请求转向 THQ Model Base，并保留原配置以便恢复。",
   },
   {
     id: "claude-desktop",

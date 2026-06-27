@@ -540,4 +540,4 @@ Eröffnen Sie für neue Funktionen bitte vor dem Einreichen eines PR ein Issue z
 
 ## Lizenz
 
-MIT © Jason Young
+THQ Switch Source-Available License v1.0 applies to THQ Switch modifications and distribution builds. Upstream CC Switch MIT notices are preserved in [NOTICE](NOTICE) and [LICENSES/CC-SWITCH-MIT.txt](LICENSES/CC-SWITCH-MIT.txt).
