@@ -76,15 +76,15 @@ const renderForm = (
           websiteUrl: "https://sub.tohoqing.com",
           notes: "hidden",
           category: "aggregator",
-          settingsConfig: {
-            auth: { OPENAI_API_KEY: "sk-thq" },
-            config:
-              'model_provider = "thq-gateway"\n[model_providers.thq-gateway]\nbase_url = "https://sub.tohoqing.com/v1"\n',
-            modelCatalog: {
-              models: [
-                {
-                  model: "gpt-5.5",
-                  displayName: "GPT 5.5",
+        settingsConfig: {
+          auth: { OPENAI_API_KEY: "sk-thq" },
+          config:
+            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
+          modelCatalog: {
+            models: [
+              {
+                model: "gpt-5.5",
+                displayName: "GPT 5.5",
                   contextWindow: 128000,
                 },
               ],
@@ -138,7 +138,7 @@ describe("ProviderForm tool route advanced mode", () => {
         settingsConfig: {
           auth: { OPENAI_API_KEY: "sk-thq" },
           config:
-            'model_provider = "thq-gateway"\n[model_providers.thq-gateway]\nbase_url = "https://sub.tohoqing.com/v1"\n',
+            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
         },
         icon: "openai",
         iconColor: "#0EA5E9",

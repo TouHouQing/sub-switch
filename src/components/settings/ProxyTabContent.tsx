@@ -20,6 +20,19 @@ import { ToggleRow } from "@/components/ui/toggle-row";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import type { SettingsFormState } from "@/hooks/useSettings";
 
+const DEFAULT_PROXY_TAKEOVER_APPS = ["claude", "codex", "gemini"] as const;
+
+export async function enableDefaultProxyTakeovers(
+  setTakeoverForApp: (payload: {
+    appType: string;
+    enabled: boolean;
+  }) => Promise<unknown>,
+) {
+  for (const appType of DEFAULT_PROXY_TAKEOVER_APPS) {
+    await setTakeoverForApp({ appType, enabled: true });
+  }
+}
+
 interface ProxyTabContentProps {
   settings: SettingsFormState;
   onAutoSave: (updates: Partial<SettingsFormState>) => Promise<void>;
@@ -38,6 +51,7 @@ export function ProxyTabContent({
     takeoverStatus,
     startProxyServer,
     stopWithRestore,
+    setTakeoverForApp,
     isPending: isProxyPending,
   } = useProxyStatus();
 
@@ -49,6 +63,7 @@ export function ProxyTabContent({
         setShowProxyConfirm(true);
       } else {
         await startProxyServer();
+        await enableDefaultProxyTakeovers(setTakeoverForApp);
       }
     } catch (error) {
       console.error("Toggle proxy failed:", error);
@@ -60,6 +75,7 @@ export function ProxyTabContent({
     try {
       await onAutoSave({ proxyConfirmed: true });
       await startProxyServer();
+      await enableDefaultProxyTakeovers(setTakeoverForApp);
     } catch (error) {
       console.error("Proxy confirm failed:", error);
     }

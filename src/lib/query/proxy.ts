@@ -98,6 +98,8 @@ export function useSetProxyTakeoverForApp() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proxyTakeoverStatus"] });
       queryClient.invalidateQueries({ queryKey: ["liveTakeoverActive"] });
+      queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["proxyRunning"] });
     },
   });
 }

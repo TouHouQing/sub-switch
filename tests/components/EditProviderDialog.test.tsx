@@ -218,7 +218,7 @@ describe("EditProviderDialog", () => {
           OPENAI_API_KEY: "sk-thq",
         },
         config:
-          'model_provider = "thq-gateway"\n[model_providers.thq-gateway]\nbase_url = "https://sub.tohoqing.com/v1"\n',
+          'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
       },
       websiteUrl: "https://sub.tohoqing.com",
       icon: "openai",

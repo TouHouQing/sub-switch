@@ -60,13 +60,15 @@ const tomlString = (value: string): string => JSON.stringify(value);
 
 const buildCodexConfig = (models: GatewayModel[]): string => {
   const model = namedModel(models, GATEWAY_DEFAULT_MODEL);
-  return `model_provider = "${GATEWAY_PROVIDER_ID}"
+  return `model_provider = "custom"
 model = ${tomlString(model)}
 model_reasoning_effort = "high"
-disable_response_storage = true
+model_context_window = 600000
+model_auto_compact_token_limit = 220000
+model_auto_compact_token_limit_scope = "total"
 
-[model_providers.${GATEWAY_PROVIDER_ID}]
-name = ${tomlString(GATEWAY_PROVIDER_NAME)}
+[model_providers.custom]
+name = "THQ"
 base_url = ${tomlString(GATEWAY_MODEL_BASE_URL)}
 wire_api = "responses"
 requires_openai_auth = true`;

@@ -38,11 +38,33 @@ describe("THQ gateway tool config", () => {
     });
 
     expect(String(provider.settingsConfig.config)).toContain(
+      'model_provider = "custom"',
+    );
+    expect(String(provider.settingsConfig.config)).toContain(
+      "[model_providers.custom]",
+    );
+    expect(String(provider.settingsConfig.config)).toContain(
+      'name = "THQ"',
+    );
+    expect(String(provider.settingsConfig.config)).toContain(
       'base_url = "https://sub.tohoqing.com/v1"',
     );
     expect(String(provider.settingsConfig.config)).toContain(
       'wire_api = "responses"',
     );
+  });
+
+  it("pins Codex gateway config below the upstream truncation point", () => {
+    const provider = buildGatewayProviderForApp("codex", {
+      apiKey: "sk-thq",
+      models: [{ id: "gpt-5.5", name: "GPT-5.5", enabled: true }],
+    });
+    const config = String(provider.settingsConfig.config);
+
+    expect(config).toContain("model_context_window = 600000");
+    expect(config).toContain("model_auto_compact_token_limit = 220000");
+    expect(config).toContain('model_auto_compact_token_limit_scope = "total"');
+    expect(config).not.toContain("disable_response_storage");
   });
 
   it("uses Claude Desktop proxy mode with safe role routes for gateway models", () => {
