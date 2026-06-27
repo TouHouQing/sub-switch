@@ -49,6 +49,10 @@ fn merge_settings_for_save(
                 .codex_third_party_history_provider_bucket_v1
                 .clone();
         }
+        if incoming_migrations.codex_state_rollout_path_v1.is_none() {
+            incoming_migrations.codex_state_rollout_path_v1 =
+                existing_migrations.codex_state_rollout_path_v1.clone();
+        }
         if incoming_migrations.codex_provider_template_v1.is_none() {
             incoming_migrations.codex_provider_template_v1 =
                 existing_migrations.codex_provider_template_v1.clone();
@@ -186,8 +190,9 @@ pub async fn set_auto_launch(enabled: bool) -> Result<bool, String> {
 mod tests {
     use super::merge_settings_for_save;
     use crate::settings::{
-        AppSettings, CodexProviderTemplateMigration, CodexThirdPartyHistoryProviderBucketMigration,
-        LocalMigrations, S3SyncSettings, WebDavSyncSettings,
+        AppSettings, CodexProviderTemplateMigration, CodexStateRolloutPathMigration,
+        CodexThirdPartyHistoryProviderBucketMigration, LocalMigrations, S3SyncSettings,
+        WebDavSyncSettings,
     };
 
     #[test]
@@ -382,6 +387,10 @@ mod tests {
                         scanned_history_files: true,
                     },
                 ),
+                codex_state_rollout_path_v1: Some(CodexStateRolloutPathMigration {
+                    completed_at: "2026-05-20T00:00:30Z".to_string(),
+                    migrated_state_rows: 7,
+                }),
                 codex_provider_template_v1: Some(CodexProviderTemplateMigration {
                     completed_at: "2026-05-20T00:01:00Z".to_string(),
                     migrated_provider_ids: vec!["legacy".to_string()],
@@ -405,6 +414,13 @@ mod tests {
         assert_eq!(migration.target_provider_id, "custom");
         assert_eq!(migration.migrated_jsonl_files, 2);
         assert_eq!(migration.migrated_state_rows, 3);
+
+        let rollout_migration = merged
+            .local_migrations
+            .as_ref()
+            .and_then(|migrations| migrations.codex_state_rollout_path_v1.as_ref())
+            .expect("rollout path migration marker should be preserved");
+        assert_eq!(rollout_migration.migrated_state_rows, 7);
 
         let template_migration = merged
             .local_migrations

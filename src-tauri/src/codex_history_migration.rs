@@ -10,7 +10,8 @@ use crate::config::{atomic_write, copy_file, get_app_config_dir};
 use crate::database::{is_official_seed_id, Database};
 use crate::error::AppError;
 use crate::settings::{
-    CodexProviderTemplateMigration, CodexThirdPartyHistoryProviderBucketMigration,
+    CodexProviderTemplateMigration, CodexStateRolloutPathMigration,
+    CodexThirdPartyHistoryProviderBucketMigration,
 };
 use chrono::{Local, Utc};
 use rusqlite::{backup::Backup, params_from_iter, Connection};
@@ -176,7 +177,18 @@ pub fn maybe_migrate_codex_provider_template_bucket(
 }
 
 pub fn maybe_migrate_codex_state_rollout_paths() -> CodexStateRolloutPathMigrationResult {
+    if crate::settings::is_codex_state_rollout_path_migrated() {
+        return Ok(CodexStateRolloutPathMigrationOutcome {
+            skipped_reason: Some("already_migrated".to_string()),
+            ..Default::default()
+        });
+    }
+
     if !cfg!(target_os = "windows") {
+        crate::settings::mark_codex_state_rollout_path_migrated(CodexStateRolloutPathMigration {
+            completed_at: Utc::now().to_rfc3339(),
+            migrated_state_rows: 0,
+        })?;
         return Ok(CodexStateRolloutPathMigrationOutcome {
             skipped_reason: Some("not_windows".to_string()),
             ..Default::default()
@@ -191,6 +203,11 @@ pub fn maybe_migrate_codex_state_rollout_paths() -> CodexStateRolloutPathMigrati
         migrated_state_rows +=
             migrate_codex_state_db_rollout_paths(&db_path, &codex_dir, &backup_root)?;
     }
+
+    crate::settings::mark_codex_state_rollout_path_migrated(CodexStateRolloutPathMigration {
+        completed_at: Utc::now().to_rfc3339(),
+        migrated_state_rows,
+    })?;
 
     Ok(CodexStateRolloutPathMigrationOutcome {
         migrated_state_rows,
@@ -823,8 +840,19 @@ fn canonical_rollout_path_for_state_db(raw: &str) -> Option<String> {
 
     path.canonicalize()
         .ok()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|path| normalize_rollout_path_for_state_db(&path.to_string_lossy()))
         .filter(|canonical| !canonical.is_empty())
+}
+
+fn normalize_rollout_path_for_state_db(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{rest}");
+    }
+    if let Some(rest) = path.strip_prefix(r"\\?\") {
+        return rest.to_string();
+    }
+
+    path.to_string()
 }
 
 fn placeholders(count: usize) -> String {
@@ -1392,11 +1420,12 @@ base_url = "https://proxy.example/v1"
         fs::write(&session_path, "{}\n").expect("write session");
 
         let stale_path = session_path.to_string_lossy().to_string();
-        let canonical_path = session_path
+        let expected_path = session_path
             .canonicalize()
             .expect("canonicalize session")
             .to_string_lossy()
             .to_string();
+        let expected_path = normalize_rollout_path_for_state_db(&expected_path);
 
         let db_path = codex_dir.join(CODEX_STATE_DB_FILENAME);
         let conn = Connection::open(&db_path).expect("open db");
@@ -1419,7 +1448,7 @@ base_url = "https://proxy.example/v1"
         let changed = migrate_codex_state_db_rollout_paths(&db_path, &codex_dir, &backup_root)
             .expect("migrate rollout paths");
 
-        assert_eq!(changed, usize::from(stale_path != canonical_path));
+        assert_eq!(changed, usize::from(stale_path != expected_path));
 
         let conn = Connection::open(&db_path).expect("reopen db");
         let saved: String = conn
@@ -1429,9 +1458,9 @@ base_url = "https://proxy.example/v1"
                 |row| row.get(0),
             )
             .expect("read rollout path");
-        assert_eq!(saved, canonical_path);
+        assert_eq!(saved, expected_path);
 
-        if stale_path != canonical_path {
+        if stale_path != expected_path {
             assert!(
                 backup_root
                     .join("state")
@@ -1440,6 +1469,18 @@ base_url = "https://proxy.example/v1"
                 "changed state DB should be backed up before updating rollout_path"
             );
         }
+    }
+
+    #[test]
+    fn rollout_path_normalization_strips_windows_verbatim_prefixes() {
+        assert_eq!(
+            normalize_rollout_path_for_state_db(r"\\?\C:\Users\me\.codex\sessions\a.jsonl"),
+            r"C:\Users\me\.codex\sessions\a.jsonl"
+        );
+        assert_eq!(
+            normalize_rollout_path_for_state_db(r"\\?\UNC\server\share\.codex\sessions\a.jsonl"),
+            r"\\server\share\.codex\sessions\a.jsonl"
+        );
     }
 
     #[test]

@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.22'
+        default: 'v3.16.23'
 
 permissions:
   contents: write
@@ -164,7 +164,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG"
+        run: pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG" --ignore-version-mismatches
 
       - name: Build unsigned macOS app bundle
         if: matrix.platform == 'macos' && steps.macos-signing.outputs.enabled != 'true'
@@ -172,17 +172,17 @@ jobs:
         run: |
           set -euo pipefail
           unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
-          pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG"
+          pnpm tauri build --target universal-apple-darwin --bundles app --config "$TAURI_RELEASE_CONFIG" --ignore-version-mismatches
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: pnpm tauri build --config "$env:TAURI_RELEASE_CONFIG"
+        run: pnpm tauri build --config "$env:TAURI_RELEASE_CONFIG" --ignore-version-mismatches
 
       - name: Build Linux app
         if: matrix.platform == 'linux'
         shell: bash
-        run: pnpm tauri build --bundles appimage,deb,rpm --config "$TAURI_RELEASE_CONFIG"
+        run: pnpm tauri build --bundles appimage,deb,rpm --config "$TAURI_RELEASE_CONFIG" --ignore-version-mismatches
 
       - name: Collect macOS assets
         if: matrix.platform == 'macos'

@@ -287,6 +287,8 @@ pub struct LocalMigrations {
     pub codex_third_party_history_provider_bucket_v1:
         Option<CodexThirdPartyHistoryProviderBucketMigration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_state_rollout_path_v1: Option<CodexStateRolloutPathMigration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codex_provider_template_v1: Option<CodexProviderTemplateMigration>,
 }
 
@@ -311,6 +313,14 @@ pub struct CodexProviderTemplateMigration {
     pub completed_at: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub migrated_provider_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexStateRolloutPathMigration {
+    pub completed_at: String,
+    #[serde(default)]
+    pub migrated_state_rows: usize,
 }
 
 /// 应用设置结构
@@ -738,6 +748,25 @@ pub fn mark_codex_third_party_history_provider_bucket_migrated(
             .local_migrations
             .get_or_insert_with(Default::default);
         migrations.codex_third_party_history_provider_bucket_v1 = Some(migration);
+    })
+}
+
+pub fn is_codex_state_rollout_path_migrated() -> bool {
+    get_settings()
+        .local_migrations
+        .as_ref()
+        .and_then(|migrations| migrations.codex_state_rollout_path_v1.as_ref())
+        .is_some()
+}
+
+pub fn mark_codex_state_rollout_path_migrated(
+    migration: CodexStateRolloutPathMigration,
+) -> Result<(), AppError> {
+    mutate_settings(|settings| {
+        let migrations = settings
+            .local_migrations
+            .get_or_insert_with(Default::default);
+        migrations.codex_state_rollout_path_v1 = Some(migration);
     })
 }
 
