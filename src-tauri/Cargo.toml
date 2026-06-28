@@ -1,6 +1,6 @@
 [package]
 name = "thq-switch"
-version = "3.16.28"
+version = "3.16.29"
 description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
 authors = ["Jason Young"]
 license-file = "../LICENSE"
