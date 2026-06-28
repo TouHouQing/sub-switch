@@ -132,13 +132,7 @@ chmod +x THQ-Switch-*.AppImage
 
 ## 截图
 
-### 主界面
-
-![THQ Switch 主界面](https://raw.githubusercontent.com/TouHouQing/sub-switch/main/assets/screenshots/main-zh.png)
-
-### 添加配置
-
-![THQ Switch 添加配置](https://raw.githubusercontent.com/TouHouQing/sub-switch/main/assets/screenshots/add-zh.png)
+![THQ Switch 路由控制台](assets/screenshots/thq-switch-dashboard.png)
 
 ## 开发者说明
 

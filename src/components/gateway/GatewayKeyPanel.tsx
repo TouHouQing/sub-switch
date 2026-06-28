@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
-import { KeyRound, Layers3, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { maskGatewaySecret } from "@/components/gateway/format";
 import type {
   GatewayApiKey,
@@ -40,6 +49,8 @@ export function GatewayKeyPanel({
   const selectedKey = keySelection?.selectedKey ?? null;
   const hasKeys = keys.length > 0;
   const selectedValue = selectedKey?.id ?? keys[0]?.id ?? "";
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createKeyName, setCreateKeyName] = useState("Desktop Client");
   const [createGroupId, setCreateGroupId] = useState("");
 
   useEffect(() => {
@@ -58,11 +69,18 @@ export function GatewayKeyPanel({
   ));
 
   const createDisabled = isCreating || groupsLoading;
-  const handleCreateKey = () => {
+  const handleOpenCreateDialog = () => {
+    setCreateKeyName("Desktop Client");
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleCreateKey = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     onCreateKey({
-      name: "Desktop Client",
+      name: createKeyName.trim() || "Desktop Client",
       groupId: createGroupId || undefined,
     });
+    setIsCreateDialogOpen(false);
   };
 
   return (
@@ -81,7 +99,7 @@ export function GatewayKeyPanel({
           type="button"
           size="sm"
           variant="outline"
-          onClick={handleCreateKey}
+          onClick={handleOpenCreateDialog}
           disabled={createDisabled}
         >
           <Plus className="h-4 w-4" />
@@ -89,28 +107,71 @@ export function GatewayKeyPanel({
         </Button>
       </div>
 
-      <div className="mt-4 space-y-1.5">
-        <label
-          htmlFor="gateway-create-key-group"
-          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-        >
-          <Layers3 className="h-3.5 w-3.5" />
-          创建 Key 分组
-        </label>
-        <select
-          id="gateway-create-key-group"
-          className="h-9 w-full rounded-md border border-border-default bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-          value={createGroupId}
-          onChange={(event) => setCreateGroupId(event.target.value)}
-          disabled={groupsLoading || groups.length === 0}
-        >
-          {groups.length === 0 ? (
-            <option value="">暂无可选分组</option>
-          ) : (
-            groupOptions
-          )}
-        </select>
-      </div>
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <form onSubmit={handleCreateKey}>
+            <DialogHeader>
+              <DialogTitle>创建 API Key</DialogTitle>
+              <DialogDescription>
+                填写 Key 名称，并选择该 Key 使用的分组。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="gateway-create-key-name"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Key 名称
+                </label>
+                <Input
+                  id="gateway-create-key-name"
+                  value={createKeyName}
+                  onChange={(event) => setCreateKeyName(event.target.value)}
+                  placeholder="例如 Desktop Client"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="gateway-create-key-group"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Key 分组
+                </label>
+                <select
+                  id="gateway-create-key-group"
+                  className="h-9 w-full rounded-md border border-border-default bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                  value={createGroupId}
+                  onChange={(event) => setCreateGroupId(event.target.value)}
+                  disabled={groupsLoading || groups.length === 0}
+                >
+                  {groups.length === 0 ? (
+                    <option value="">暂无可选分组</option>
+                  ) : (
+                    groupOptions
+                  )}
+                </select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsCreateDialogOpen(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={createDisabled}>
+                创建
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="mt-4 h-24 animate-pulse rounded-md bg-muted" />

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GatewayKeyPanel } from "@/components/gateway/GatewayKeyPanel";
 
 describe("GatewayKeyPanel", () => {
-  it("creates keys with the selected group", () => {
+  it("opens a dialog to create keys with a custom name and selected group", () => {
     const handleCreateKey = vi.fn();
 
     render(
@@ -25,15 +25,20 @@ describe("GatewayKeyPanel", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("创建 Key 分组"), {
+    fireEvent.click(screen.getByRole("button", { name: "创建 Key" }));
+    fireEvent.change(screen.getByLabelText("Key 名称"), {
+      target: { value: "测试 Key" },
+    });
+    fireEvent.change(screen.getByLabelText("Key 分组"), {
       target: { value: "group-claude" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "创建 Key" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建" }));
 
     expect(handleCreateKey).toHaveBeenCalledWith({
-      name: "Desktop Client",
+      name: "测试 Key",
       groupId: "group-claude",
     });
+    expect(screen.queryByText("创建 Key 分组")).not.toBeInTheDocument();
   });
 
   it("edits the group for an existing key", () => {
