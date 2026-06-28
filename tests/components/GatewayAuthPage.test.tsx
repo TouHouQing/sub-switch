@@ -12,8 +12,12 @@ describe("GatewayAuthPage", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "账号登录" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "注册账号" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "账号登录" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "注册账号" }),
+    ).toBeInTheDocument();
   });
 
   it("submits login credentials", async () => {
@@ -66,7 +70,12 @@ describe("GatewayAuthPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "注册" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "验证邮箱" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "验证邮箱" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText("邮箱")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("密码")).not.toBeInTheDocument();
+      expect(screen.getByText("new@tohoqing.com")).toBeInTheDocument();
       expect(handleSendCode).toHaveBeenCalledWith("new@tohoqing.com");
     });
 
@@ -111,7 +120,9 @@ describe("GatewayAuthPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "返回注册" }));
 
-    expect(screen.getByRole("heading", { name: "注册账号" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "注册账号" }),
+    ).toBeInTheDocument();
   });
 
   it("normalizes email before sending verification code from the form", async () => {
@@ -138,5 +149,33 @@ describe("GatewayAuthPage", () => {
     await waitFor(() => {
       expect(handleSendCode).toHaveBeenCalledWith("new@tohoqing.com");
     });
+  });
+
+  it("validates short registration passwords before sending a code", async () => {
+    const handleSendCode = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <GatewayAuthPage
+        isLoading={false}
+        onLogin={vi.fn()}
+        onRegister={vi.fn()}
+        onSendRegisterCode={handleSendCode}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "注册账号" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "new@tohoqing.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "注册" }));
+
+    expect(await screen.findByText("密码至少 6 位")).toBeInTheDocument();
+    expect(handleSendCode).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "注册账号" }),
+    ).toBeInTheDocument();
   });
 });

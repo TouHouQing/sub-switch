@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
+import { ArrowLeft, LogIn, MailCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GATEWAY_ORIGIN } from "@/lib/gateway/constants";
 import { normalizeGatewayEmail } from "@/lib/gateway/email";
+import { getGatewayErrorMessage } from "@/lib/gateway/errors";
 
 export interface GatewayAuthCredentials {
   email: string;
@@ -26,6 +27,7 @@ interface GatewayAuthPageProps {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
 
 type AuthMode = "login" | "register" | "verify";
 
@@ -47,6 +49,7 @@ export function GatewayAuthPage({
     password: string;
   } | null>(null);
   const [localError, setLocalError] = useState("");
+  const [codeNotice, setCodeNotice] = useState("");
   const [codeCooldown, setCodeCooldown] = useState(0);
   const [autoSent, setAutoSent] = useState(false);
 
@@ -64,44 +67,55 @@ export function GatewayAuthPage({
     setCodeCooldown(0);
     setAutoSent(false);
     setLocalError("");
+    setCodeNotice("");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLocalError("");
 
-    if (!isEmailValid) {
-      setLocalError(
-        t("gateway.auth.invalidEmail", {
-          defaultValue: "请输入有效的邮箱地址",
-        }),
-      );
-      return;
-    }
+    if (!pendingRegistration) {
+      if (!isEmailValid) {
+        setLocalError(
+          t("gateway.auth.invalidEmail", {
+            defaultValue: "请输入有效的邮箱地址",
+          }),
+        );
+        return;
+      }
 
-    const credentials = {
-      email: normalizedEmail,
-      password,
-    };
+      if (!password.trim()) {
+        setLocalError(
+          t("gateway.auth.passwordRequired", {
+            defaultValue: "请输入密码",
+          }),
+        );
+        return;
+      }
 
-    if (isLogin) {
-      await onLogin(credentials);
-      return;
-    }
+      if (isRegister && password.length < MIN_PASSWORD_LENGTH) {
+        setLocalError(
+          t("gateway.auth.passwordTooShort", {
+            defaultValue: "密码至少 6 位",
+          }),
+        );
+        return;
+      }
 
-    if (isRegister) {
+      const credentials = {
+        email: normalizedEmail,
+        password,
+      };
+
+      if (isLogin) {
+        await onLogin(credentials);
+        return;
+      }
+
       setPendingRegistration(credentials);
       setVerificationCode("");
+      setCodeNotice("");
       setMode("verify");
-      return;
-    }
-
-    if (!pendingRegistration) {
-      setLocalError(
-        t("gateway.auth.registerSessionMissing", {
-          defaultValue: "请先重新发起注册流程",
-        }),
-      );
       return;
     }
 
@@ -123,6 +137,7 @@ export function GatewayAuthPage({
 
   const handleSendCode = async (targetEmail?: string) => {
     setLocalError("");
+    setCodeNotice("");
     const emailToUse = normalizeGatewayEmail(
       targetEmail ?? pendingRegistration?.email ?? email,
     );
@@ -135,7 +150,18 @@ export function GatewayAuthPage({
       return;
     }
     if (!onSendRegisterCode) return;
-    await onSendRegisterCode(emailToUse);
+    try {
+      await onSendRegisterCode(emailToUse);
+    } catch (error) {
+      setLocalError(getGatewayErrorMessage(error, "send-code"));
+      throw error;
+    }
+    setCodeNotice(
+      t("gateway.auth.codeSentTo", {
+        defaultValue: "验证码已发送到 {{email}}",
+        email: emailToUse,
+      }),
+    );
     setCodeCooldown(60);
   };
 
@@ -151,7 +177,7 @@ export function GatewayAuthPage({
   useEffect(() => {
     if (!isVerify || autoSent || !pendingRegistration?.email) return;
     setAutoSent(true);
-    void handleSendCode(pendingRegistration.email);
+    void handleSendCode(pendingRegistration.email).catch(() => undefined);
     // Keep the auto-send bootstrap lightweight; the resend button is still available.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVerify, autoSent, pendingRegistration?.email]);
@@ -163,6 +189,7 @@ export function GatewayAuthPage({
     setCodeCooldown(0);
     setAutoSent(false);
     setLocalError("");
+    setCodeNotice("");
   };
 
   return (
@@ -214,6 +241,8 @@ export function GatewayAuthPage({
             <div className="flex items-center gap-2">
               {isLogin ? (
                 <LogIn className="h-5 w-5 text-cyan-500" />
+              ) : isVerify ? (
+                <MailCheck className="h-5 w-5 text-emerald-500" />
               ) : (
                 <UserPlus className="h-5 w-5 text-emerald-500" />
               )}
@@ -237,45 +266,56 @@ export function GatewayAuthPage({
           </div>
 
           <div className="mt-8 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="gateway-email">
-                {t("gateway.auth.email", { defaultValue: "邮箱" })}
-              </Label>
-              <Input
-                id="gateway-email"
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  setLocalError("");
-                }}
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gateway-password">
-                {t("gateway.auth.password", { defaultValue: "密码" })}
-              </Label>
-              <Input
-                id="gateway-password"
-                type="password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setLocalError("");
-                }}
-                placeholder="••••••••"
-                autoComplete={isRegister ? "new-password" : "current-password"}
-                required
-                minLength={6}
-              />
-            </div>
+            {!isVerify && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="gateway-email">
+                    {t("gateway.auth.email", { defaultValue: "邮箱" })}
+                  </Label>
+                  <Input
+                    id="gateway-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setLocalError("");
+                    }}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gateway-password">
+                    {t("gateway.auth.password", { defaultValue: "密码" })}
+                  </Label>
+                  <Input
+                    id="gateway-password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setLocalError("");
+                    }}
+                    placeholder="••••••••"
+                    autoComplete={
+                      isRegister ? "new-password" : "current-password"
+                    }
+                    required
+                    minLength={MIN_PASSWORD_LENGTH}
+                  />
+                </div>
+              </>
+            )}
 
             {isVerify && pendingRegistration && (
-              <div className="space-y-2">
-                <div className="rounded-md border border-border-default bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 text-sm">
+                <div className="font-medium text-emerald-700 dark:text-emerald-300">
+                  {t("gateway.auth.verifyStepTitle", {
+                    defaultValue: "请查收邮箱验证码",
+                  })}
+                </div>
+                <div className="mt-1 text-muted-foreground">
                   {pendingRegistration.email}
                 </div>
               </div>
@@ -307,11 +347,13 @@ export function GatewayAuthPage({
                     variant="outline"
                     className="shrink-0"
                     disabled={
-                      isLoading ||
-                      isSendingVerificationCode ||
-                      codeCooldown > 0
+                      isLoading || isSendingVerificationCode || codeCooldown > 0
                     }
-                    onClick={() => void handleSendCode(pendingRegistration.email)}
+                    onClick={() =>
+                      void handleSendCode(pendingRegistration.email).catch(
+                        () => undefined,
+                      )
+                    }
                   >
                     {isSendingVerificationCode
                       ? t("common.loading", { defaultValue: "加载中..." })
@@ -328,6 +370,12 @@ export function GatewayAuthPage({
               </div>
             )}
           </div>
+
+          {codeNotice && !shownError && (
+            <p className="mt-4 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+              {codeNotice}
+            </p>
+          )}
 
           {shownError && (
             <p className="mt-4 rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-500 dark:text-red-300">

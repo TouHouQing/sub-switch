@@ -9,6 +9,7 @@ import {
   hasConfiguredGatewayProviderModels,
 } from "@/lib/gateway/toolConfig";
 import { GATEWAY_PROVIDER_ID } from "@/lib/gateway/constants";
+import { getGatewayErrorMessage } from "@/lib/gateway/errors";
 import {
   useGatewayCreateKeyMutation,
   useGatewayCreatePaymentOrderMutation,
@@ -95,7 +96,7 @@ export function GatewayApp({
       await loginMutation.mutateAsync(credentials);
       toast.success("登录成功");
     } catch (error) {
-      toast.error(extractErrorMessage(error) || "登录失败");
+      toast.error(getGatewayErrorMessage(error, "login"));
     }
   };
 
@@ -104,7 +105,7 @@ export function GatewayApp({
       await registerMutation.mutateAsync(credentials);
       toast.success("注册成功");
     } catch (error) {
-      toast.error(extractErrorMessage(error) || "注册失败");
+      toast.error(getGatewayErrorMessage(error, "register"));
     }
   };
 
@@ -113,7 +114,7 @@ export function GatewayApp({
       await registerVerificationCodeMutation.mutateAsync({ email });
       toast.success("验证码已发送，请查看邮箱");
     } catch (error) {
-      toast.error(extractErrorMessage(error) || "发送验证码失败");
+      toast.error(getGatewayErrorMessage(error, "send-code"));
       throw error;
     }
   };
@@ -123,7 +124,7 @@ export function GatewayApp({
       await logoutMutation.mutateAsync();
       toast.success("已退出登录");
     } catch (error) {
-      toast.error(extractErrorMessage(error) || "退出登录失败");
+      toast.error(getGatewayErrorMessage(error, "logout"));
     }
   };
 
@@ -234,10 +235,7 @@ export function GatewayApp({
     }
   };
 
-  if (
-    sessionQuery.isLoading ||
-    (hasStoredSession && profileQuery.isLoading)
-  ) {
+  if (sessionQuery.isLoading || (hasStoredSession && profileQuery.isLoading)) {
     return (
       <main className="flex min-h-full items-center justify-center px-6">
         <div className="rounded-lg border border-border-default bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
@@ -248,9 +246,14 @@ export function GatewayApp({
   }
 
   if (!hasSession) {
-    const authError = extractErrorMessage(
-      loginMutation.error ?? registerMutation.error ?? undefined,
-    );
+    const authFailure =
+      loginMutation.error ?? registerMutation.error ?? undefined;
+    const authError = authFailure
+      ? getGatewayErrorMessage(
+          authFailure,
+          loginMutation.error ? "login" : "register",
+        )
+      : "";
     return (
       <GatewayAuthPage
         isLoading={loginMutation.isPending || registerMutation.isPending}
