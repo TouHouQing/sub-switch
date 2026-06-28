@@ -136,9 +136,14 @@ command = "echo"
                 "Latest".to_string(),
                 json!({
                     "auth": {"OPENAI_API_KEY": "fresh-key"},
-                    "config": r#"[mcp_servers.latest]
-type = "stdio"
-command = "say"
+                    "config": r#"model_provider = "latest"
+model = "gpt-5"
+
+[model_providers.latest]
+name = "Latest"
+base_url = "https://latest.example/v1"
+wire_api = "responses"
+requires_openai_auth = true
 "#
                 }),
                 None,
@@ -190,8 +195,8 @@ command = "say"
     let config_text =
         std::fs::read_to_string(thq_switch_lib::get_codex_config_path()).expect("read config.toml");
     assert!(
-        config_text.contains("mcp_servers.echo-server"),
-        "config.toml should contain synced MCP servers"
+        !config_text.contains("mcp_servers.echo-server"),
+        "Codex provider switching should not automatically sync global MCP servers"
     );
     assert!(
         config_text.contains("experimental_bearer_token"),
@@ -219,15 +224,13 @@ command = "say"
         .get("config")
         .and_then(|v| v.as_str())
         .unwrap_or_default();
-    // provider 存储的是原始配置，不包含 MCP 同步后的内容
     assert!(
-        new_config_text.contains("mcp_servers.latest"),
-        "provider config should contain original MCP servers"
+        new_config_text.contains("model_provider = \"latest\""),
+        "provider config should contain the original Codex provider config"
     );
-    // live 文件额外包含同步的 MCP 服务器
     assert!(
-        config_text.contains("mcp_servers.echo-server"),
-        "live config should include synced MCP servers"
+        config_text.contains("model_provider = \"latest\""),
+        "live config should contain the selected provider config"
     );
 
     let legacy = providers

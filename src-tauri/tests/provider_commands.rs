@@ -275,9 +275,14 @@ command = "echo"
                 "Latest".to_string(),
                 json!({
                     "auth": {"OPENAI_API_KEY": "fresh-key"},
-                    "config": r#"[mcp_servers.latest]
-type = "stdio"
-command = "say"
+                    "config": r#"model_provider = "latest"
+model = "gpt-5"
+
+[model_providers.latest]
+name = "Latest"
+base_url = "https://latest.example/v1"
+wire_api = "responses"
+requires_openai_auth = true
 "#
                 }),
                 None,
@@ -328,8 +333,8 @@ command = "say"
 
     let config_text = std::fs::read_to_string(get_codex_config_path()).expect("read config.toml");
     assert!(
-        config_text.contains("mcp_servers.echo-server"),
-        "config.toml should contain synced MCP servers"
+        !config_text.contains("mcp_servers.echo-server"),
+        "Codex provider switching should not automatically sync global MCP servers"
     );
     assert!(
         config_text.contains("experimental_bearer_token"),
@@ -357,14 +362,12 @@ command = "say"
         .get("config")
         .and_then(|v| v.as_str())
         .unwrap_or_default();
-    // 供应商配置应该包含在 live 文件中
-    // 注意：live 文件还会包含 MCP 同步后的内容
     assert!(
-        config_text.contains("mcp_servers.latest"),
+        config_text.contains("model_provider = \"latest\""),
         "live file should contain provider's original config"
     );
     assert!(
-        new_config_text.contains("mcp_servers.latest"),
+        new_config_text.contains("model_provider = \"latest\""),
         "provider snapshot should contain provider's original config"
     );
 

@@ -335,19 +335,12 @@ impl ProxyService {
         &self,
         provider: &Provider,
     ) -> Result<(), String> {
-        let existing_live = self.read_codex_live().ok();
         let mut effective_settings = build_effective_settings_with_common_config(
             self.db.as_ref(),
             &AppType::Codex,
             provider,
         )
         .map_err(|e| format!("构建 codex 有效配置失败: {e}"))?;
-        if let Some(existing_live) = existing_live.as_ref() {
-            Self::preserve_codex_mcp_servers_from_existing_config(
-                &mut effective_settings,
-                existing_live,
-            )?;
-        }
         let (_, proxy_codex_base_url) = self.build_proxy_urls().await?;
 
         if let Some(auth) = effective_settings
@@ -2027,10 +2020,6 @@ impl ProxyService {
                 .transpose()?;
 
             if let Some(existing_value) = existing_backup_value.as_ref() {
-                Self::preserve_codex_mcp_servers_from_existing_config(
-                    &mut effective_settings,
-                    existing_value,
-                )?;
                 Self::preserve_codex_oauth_auth_in_backup(&mut effective_settings, existing_value)?;
             }
         }
@@ -2138,8 +2127,7 @@ impl ProxyService {
                 .ok_or_else(|| "Codex 供应商缺少 auth 配置".to_string())?;
             let config_str = effective_settings.get("config").and_then(|v| v.as_str());
 
-            crate::codex_config::write_codex_provider_live_with_catalog(
-                &effective_settings,
+            crate::codex_config::write_codex_live_for_provider(
                 provider.category.as_deref(),
                 auth,
                 config_str,
@@ -2161,67 +2149,6 @@ impl ProxyService {
     #[cfg(test)]
     async fn lock_switch_for_test(&self, app_type: &str) -> tokio::sync::OwnedMutexGuard<()> {
         self.switch_locks.lock_for_app(app_type).await
-    }
-
-    fn preserve_codex_mcp_servers_from_existing_config(
-        target_settings: &mut Value,
-        existing_config: &Value,
-    ) -> Result<(), String> {
-        let target_obj = target_settings
-            .as_object_mut()
-            .ok_or_else(|| "Codex 备份必须是 JSON 对象".to_string())?;
-
-        let target_config = target_obj
-            .get("config")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let mut target_doc = if target_config.trim().is_empty() {
-            toml_edit::DocumentMut::new()
-        } else {
-            target_config
-                .parse::<toml_edit::DocumentMut>()
-                .map_err(|e| format!("解析新的 Codex config.toml 失败: {e}"))?
-        };
-
-        let existing_config = existing_config
-            .get("config")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        if existing_config.trim().is_empty() {
-            target_obj.insert("config".to_string(), json!(target_doc.to_string()));
-            return Ok(());
-        }
-
-        let existing_doc = existing_config
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| format!("解析现有 Codex 备份失败: {e}"))?;
-
-        if let Some(existing_mcp_servers) = existing_doc.get("mcp_servers") {
-            match target_doc.get_mut("mcp_servers") {
-                Some(target_mcp_servers) => {
-                    if let (Some(target_table), Some(existing_table)) = (
-                        target_mcp_servers.as_table_like_mut(),
-                        existing_mcp_servers.as_table_like(),
-                    ) {
-                        for (server_id, server_item) in existing_table.iter() {
-                            if target_table.get(server_id).is_none() {
-                                target_table.insert(server_id, server_item.clone());
-                            }
-                        }
-                    } else {
-                        log::warn!(
-                            "Codex config contains a non-table mcp_servers section; skipping MCP merge"
-                        );
-                    }
-                }
-                None => {
-                    target_doc["mcp_servers"] = existing_mcp_servers.clone();
-                }
-            }
-        }
-
-        target_obj.insert("config".to_string(), json!(target_doc.to_string()));
-        Ok(())
     }
 
     fn preserve_codex_oauth_auth_in_backup(
@@ -2403,8 +2330,7 @@ impl ProxyService {
             .ok_or_else(|| "Codex 配置缺少 auth 字段".to_string())?;
         let config_str = config.get("config").and_then(|v| v.as_str());
 
-        crate::codex_config::write_codex_provider_live_with_catalog(
-            config,
+        crate::codex_config::write_codex_live_for_provider(
             provider.category.as_deref(),
             auth,
             config_str,
@@ -2426,14 +2352,9 @@ impl ProxyService {
                 .get("auth")
                 .filter(|auth| Self::codex_auth_has_proxy_placeholder(auth))
             {
-                let config_str = config.get("config").and_then(|v| v.as_str()).unwrap_or("");
-                let prepared_config =
-                    crate::codex_config::prepare_codex_live_config_text_with_optional_catalog(
-                        config, config_str,
-                    )
-                    .map_err(|e| format!("写入 Codex 配置失败: {e}"))?;
+                let prepared_config = config.get("config").and_then(|v| v.as_str()).unwrap_or("");
                 let live_config =
-                    crate::codex_config::prepare_codex_provider_live_config(auth, &prepared_config)
+                    crate::codex_config::prepare_codex_provider_live_config(auth, prepared_config)
                         .map_err(|e| format!("写入 Codex 配置失败: {e}"))?;
                 crate::codex_config::write_codex_live_config_atomic(Some(&live_config))
                     .map_err(|e| format!("写入 Codex 配置失败: {e}"))?;
@@ -2450,29 +2371,7 @@ impl ProxyService {
         let auth = config.get("auth");
         let config_str = config.get("config").and_then(|v| v.as_str());
 
-        // Decide the config.toml text ONCE, before splitting on auth. A stored
-        // Codex backup comes in two shapes needing opposite handling:
-        //  - snapshot backup (`read_codex_live_settings`): no inline `modelCatalog`;
-        //    the config text already carries the live `model_catalog_json` pointer
-        //    → keep raw, or projection would strip it.
-        //  - provider-rebuilt backup (`update_live_backup_from_provider`): inline
-        //    `modelCatalog` (DB SSOT) with a pointer-less config text → project,
-        //    or the mapping is lost on restore.
-        // The projection decision is orthogonal to auth: a provider-rebuilt backup
-        // can pair an inline `modelCatalog` with empty/absent `auth.json` (the key
-        // living in the config's `experimental_bearer_token`). Computing it up here
-        // keeps every config-writing branch — write-auth, delete-auth, no-auth —
-        // consistent instead of letting the empty-auth path skip projection.
-        let prepared_cfg = config_str
-            .map(|cfg| {
-                crate::codex_config::prepare_codex_live_config_text_with_optional_catalog(
-                    config, cfg,
-                )
-            })
-            .transpose()
-            .map_err(|e| format!("写入 Codex 配置失败: {e}"))?;
-
-        match (auth, prepared_cfg.as_deref()) {
+        match (auth, config_str) {
             (Some(auth), Some(cfg)) => {
                 let auth_path = get_codex_auth_path();
                 if auth.as_object().is_some_and(|obj| obj.is_empty()) {
@@ -4953,7 +4852,7 @@ base_url = "https://codex.example/v1"
 
     #[tokio::test]
     #[serial]
-    async fn update_live_backup_from_provider_preserves_codex_mcp_servers() {
+    async fn update_live_backup_from_provider_does_not_merge_existing_codex_mcp_servers() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
 
@@ -5017,8 +4916,8 @@ base_url = "https://new.example/v1"
             .expect("config string");
 
         assert!(
-            config.contains("[mcp_servers.echo]"),
-            "existing Codex MCP section should survive proxy hot-switch backup update"
+            !config.contains("[mcp_servers.echo]"),
+            "existing Codex MCP section should not be merged into provider-derived backup"
         );
         assert!(
             config.contains("https://new.example/v1"),
@@ -5326,7 +5225,7 @@ requires_openai_auth = true
 
     #[tokio::test]
     #[serial]
-    async fn update_live_backup_from_provider_keeps_new_codex_mcp_entries_on_conflict() {
+    async fn update_live_backup_from_provider_keeps_provider_config_without_merging_old_mcp() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
 
@@ -5384,7 +5283,7 @@ command = "latest-command"
             .get("config")
             .and_then(|v| v.as_str())
             .expect("config string");
-        let parsed: toml::Value = toml::from_str(config).expect("parse merged codex config");
+        let parsed: toml::Value = toml::from_str(config).expect("parse codex config");
 
         let mcp_servers = parsed
             .get("mcp_servers")
@@ -5402,8 +5301,8 @@ command = "latest-command"
                 .get("legacy")
                 .and_then(|v| v.get("command"))
                 .and_then(|v| v.as_str()),
-            Some("legacy-command"),
-            "backup-only MCP entries should still be preserved"
+            None,
+            "backup-only MCP entries should not be merged into the restore backup"
         );
         assert_eq!(
             mcp_servers
@@ -5417,10 +5316,9 @@ command = "latest-command"
 
     #[tokio::test]
     #[serial]
-    async fn provider_switch_with_restored_codex_backup_refreshes_catalog_and_common_config() {
+    async fn provider_switch_with_restored_codex_backup_keeps_minimal_config_and_common_config() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
-        seed_codex_model_template();
 
         let db = Arc::new(Database::memory().expect("init db"));
         let state = crate::store::AppState::new(db.clone());
@@ -5522,37 +5420,11 @@ requires_openai_auth = true
             .expect("provider switch to provider b");
         state.proxy_service.stop().await.expect("stop proxy server");
 
-        let catalog_path = crate::codex_config::get_codex_model_catalog_path();
-        assert!(
-            catalog_path.exists(),
-            "thq-switch-model-catalog.json must be created on provider switch"
-        );
-        let catalog_text = std::fs::read_to_string(&catalog_path).expect("read catalog json");
-        let catalog: serde_json::Value =
-            serde_json::from_str(&catalog_text).expect("parse catalog json");
-        let slugs: Vec<&str> = catalog
-            .get("models")
-            .and_then(|m| m.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|e| e.get("slug").and_then(|s| s.as_str()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        assert!(
-            slugs.contains(&"model-b"),
-            "catalog must contain provider B's model after switch; got: {slugs:?}"
-        );
-        assert!(
-            !slugs.contains(&"model-a"),
-            "catalog must not contain stale provider A model after switch; got: {slugs:?}"
-        );
-
         let config_path = crate::codex_config::get_codex_config_path();
         let config_text = std::fs::read_to_string(&config_path).expect("read config.toml");
         assert!(
-            config_text.contains("model_catalog_json"),
-            "config.toml must reference model_catalog_json after switch"
+            !config_text.contains("model_catalog_json"),
+            "config.toml should not reference a generated model catalog after switch"
         );
         assert!(
             config_text.contains("[mcp_servers.shared]"),
@@ -5566,10 +5438,9 @@ requires_openai_auth = true
 
     #[tokio::test]
     #[serial]
-    async fn provider_switch_with_restored_codex_backup_propagates_catalog_write_errors() {
+    async fn provider_switch_with_restored_codex_backup_ignores_catalog_write_path() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
-        seed_codex_model_template();
 
         let db = Arc::new(Database::memory().expect("init db"));
         let state = crate::store::AppState::new(db.clone());
@@ -5658,14 +5529,15 @@ requires_openai_auth = true
         }
         std::fs::create_dir_all(&catalog_path).expect("turn catalog path into directory");
 
-        let err = crate::services::provider::ProviderService::switch(&state, AppType::Codex, "b")
-            .expect_err("provider switch should fail when catalog cannot be written");
+        crate::services::provider::ProviderService::switch(&state, AppType::Codex, "b")
+            .expect("provider switch should not write the model catalog");
         state.proxy_service.stop().await.expect("stop proxy server");
 
-        let message = err.to_string();
+        let restored = std::fs::read_to_string(crate::codex_config::get_codex_config_path())
+            .expect("read restored config.toml");
         assert!(
-            message.contains("写入 Codex 配置失败") || message.contains("原子替换失败"),
-            "switch should surface catalog write failure, got: {message}"
+            !restored.contains("model_catalog_json"),
+            "switch should not inject model_catalog_json"
         );
     }
 
@@ -5733,32 +5605,19 @@ requires_openai_auth = true
         );
     }
 
-    /// Regression: a hot-switch during takeover rebuilds the backup from the DB
-    /// provider (`update_live_backup_from_provider`), so the backup carries an
-    /// inline `modelCatalog` (DB SSOT) but a `config.toml` text WITHOUT a
-    /// `model_catalog_json` pointer. Restoring that backup must project the
-    /// inline catalog — (re)generating both the catalog file and the pointer —
-    /// or the Codex model mapping vanishes from Live after takeover-off.
+    /// Restoring a provider-rebuilt backup should write the stored Codex
+    /// config.toml as-is. `modelCatalog` is THQ Switch private state and must
+    /// not be projected into Codex's live config during restore.
     #[tokio::test]
     #[serial]
-    async fn codex_restore_from_backup_projects_inline_model_catalog() {
+    async fn codex_restore_from_backup_does_not_project_inline_model_catalog() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
 
         let db = Arc::new(Database::memory().expect("init db"));
         let service = ProxyService::new(db.clone());
 
-        // Catalog projection needs a model template; seed `models_cache.json`
-        // with the template slug so we don't depend on the `codex` CLI.
-        let codex_dir = crate::codex_config::get_codex_config_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        std::fs::write(
-            codex_dir.join("models_cache.json"),
-            r#"{"models":[{"slug":"gpt-5.5"}]}"#,
-        )
-        .expect("seed models_cache template");
-
-        // Provider-rebuilt backup shape: inline modelCatalog, pointer-less config.
+        // Provider-rebuilt backup shape: inline modelCatalog plus pointer-less config.
         let backup_json = serde_json::to_string(&json!({
             "auth": { "OPENAI_API_KEY": "deepseek-key" },
             "config": "model_provider = \"custom\"\nmodel = \"deepseek-v4-flash\"\n\n[model_providers.custom]\nname = \"DeepSeek\"\nbase_url = \"https://api.deepseek.example/v1\"\nwire_api = \"responses\"\n",
@@ -5782,52 +5641,29 @@ requires_openai_auth = true
             .expect("read restored config.toml");
         let catalog_path = crate::codex_config::get_codex_model_catalog_path();
         assert!(
-            restored.contains("model_catalog_json"),
-            "restore must (re)generate the model_catalog_json pointer from inline catalog, got:\n{restored}"
+            !restored.contains("model_catalog_json"),
+            "restore should not inject model_catalog_json from inline catalog, got:\n{restored}"
         );
         assert!(
-            catalog_path.exists(),
-            "restore must generate the THQ Switch catalog file on disk"
+            !catalog_path.exists(),
+            "restore should not generate the THQ Switch catalog file on disk"
         );
-        let catalog: Value = serde_json::from_str(
-            &std::fs::read_to_string(&catalog_path).expect("read generated catalog"),
-        )
-        .expect("parse generated catalog");
-        let slugs: Vec<&str> = catalog
-            .get("models")
-            .and_then(|m| m.as_array())
-            .expect("catalog models")
-            .iter()
-            .filter_map(|m| m.get("slug").and_then(|s| s.as_str()))
-            .collect();
         assert!(
-            slugs.contains(&"deepseek-v4-flash"),
-            "generated catalog must contain the inline model, got slugs: {slugs:?}"
+            restored.contains("model = \"deepseek-v4-flash\""),
+            "restore should still write the provider's model config"
         );
     }
 
-    /// Regression: a provider-rebuilt backup can pair an inline `modelCatalog`
-    /// with EMPTY `auth.json` (`{}`) — the bearer-token / Mobile-compat shape
-    /// where the API key lives in the config's `experimental_bearer_token`. The
-    /// empty-auth restore branch deletes `auth.json` and writes config raw; it
-    /// must still project the inline catalog (decision is orthogonal to auth), or
-    /// the model mapping vanishes on takeover-off for this provider shape.
+    /// Empty-auth backups should also be restored as raw Codex config text. The
+    /// presence of inline `modelCatalog` must not cause hidden live config writes.
     #[tokio::test]
     #[serial]
-    async fn codex_restore_empty_auth_backup_still_projects_inline_catalog() {
+    async fn codex_restore_empty_auth_backup_does_not_project_inline_catalog() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
 
         let db = Arc::new(Database::memory().expect("init db"));
         let service = ProxyService::new(db.clone());
-
-        let codex_dir = crate::codex_config::get_codex_config_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        std::fs::write(
-            codex_dir.join("models_cache.json"),
-            r#"{"models":[{"slug":"gpt-5.5"}]}"#,
-        )
-        .expect("seed models_cache template");
 
         // Empty auth.json + key carried in config.toml's experimental_bearer_token,
         // plus the inline modelCatalog (DB SSOT).
@@ -5851,12 +5687,12 @@ requires_openai_auth = true
         let restored = std::fs::read_to_string(crate::codex_config::get_codex_config_path())
             .expect("read restored config.toml");
         assert!(
-            restored.contains("model_catalog_json"),
-            "empty-auth restore must still project the inline catalog pointer, got:\n{restored}"
+            !restored.contains("model_catalog_json"),
+            "empty-auth restore should not inject model_catalog_json, got:\n{restored}"
         );
         assert!(
-            crate::codex_config::get_codex_model_catalog_path().exists(),
-            "empty-auth restore must generate the THQ Switch catalog file"
+            !crate::codex_config::get_codex_model_catalog_path().exists(),
+            "empty-auth restore should not generate the THQ Switch catalog file"
         );
         assert!(
             !crate::codex_config::get_codex_auth_path().exists(),

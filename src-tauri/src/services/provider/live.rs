@@ -13,7 +13,6 @@ use crate::config::{delete_file, get_claude_settings_path, read_json_file, write
 use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
-use crate::services::mcp::McpService;
 use crate::store::AppState;
 
 use super::gemini_auth::{
@@ -747,8 +746,7 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
                 .ok_or_else(|| AppError::Config("Codex 供应商配置缺少 'auth' 字段".to_string()))?;
             let config_str = obj.get("config").and_then(|v| v.as_str());
 
-            crate::codex_config::write_codex_provider_live_with_catalog(
-                &provider.settings_config,
+            crate::codex_config::write_codex_live_for_provider(
                 provider.category.as_deref(),
                 auth,
                 config_str,
@@ -918,8 +916,6 @@ pub(crate) fn sync_current_provider_for_app_to_live(
         }
     }
 
-    McpService::sync_all_enabled(state)?;
-
     Ok(())
 }
 
@@ -985,9 +981,6 @@ pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
             sync_current_provider_for_app_respecting_takeover(state, &app_type)?;
         }
     }
-
-    // MCP sync
-    McpService::sync_all_enabled(state)?;
 
     // Skill sync
     for app_type in AppType::all() {
