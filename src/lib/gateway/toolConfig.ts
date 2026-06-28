@@ -1,5 +1,6 @@
 import type { AppId } from "@/lib/api";
 import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
+import { getCodexCustomTemplate } from "@/config/codexTemplates";
 import {
   GATEWAY_DEFAULT_CLAUDE_MODEL,
   GATEWAY_DEFAULT_GEMINI_MODEL,
@@ -91,6 +92,22 @@ const namedGatewayModel = (
   return { id, name: selected.name.trim() || id };
 };
 
+const buildNamedGatewayModels = (
+  models: GatewayModel[],
+): Array<{
+  id: string;
+  name: string;
+}> =>
+  modelIds(models).map((id) => {
+    const selected = models.find(
+      (model) => model.enabled && model.id.trim() === id,
+    );
+    return {
+      id,
+      name: selected?.name.trim() || id,
+    };
+  });
+
 const baseProvider = (
   settingsConfig: Provider["settingsConfig"],
 ): Provider => ({
@@ -110,32 +127,31 @@ const baseProvider = (
 const tomlString = (value: string): string => JSON.stringify(value);
 
 const buildCodexConfig = (models: GatewayModel[]): string => {
+  const template = getCodexCustomTemplate();
   const model = namedModel(models, GATEWAY_DEFAULT_MODEL);
-  return `model_provider = "custom"
-model = ${tomlString(model)}
-model_reasoning_effort = "high"
 
-[model_providers.custom]
-name = "THQ"
-base_url = ${tomlString(GATEWAY_MODEL_BASE_URL)}
-wire_api = "responses"
-requires_openai_auth = true`;
+  return template.config
+    .replace('model = "gpt-5.5"', `model = ${tomlString(model)}`)
+    .replace(
+      '[model_providers.custom]\nname = "custom"',
+      `[model_providers.custom]\nname = "custom"\nbase_url = ${tomlString(GATEWAY_MODEL_BASE_URL)}`,
+    );
 };
 
 const buildOpenCodeModels = (models: GatewayModel[]) =>
   Object.fromEntries(
-    modelIds(models).map((id) => [
+    buildNamedGatewayModels(models).map(({ id, name }) => [
       id,
       {
-        name: id,
+        name,
       },
     ]),
   );
 
 const buildOpenClawModels = (models: GatewayModel[]): OpenClawModel[] =>
-  modelIds(models).map((id) => ({
+  buildNamedGatewayModels(models).map(({ id, name }) => ({
     id,
-    name: id,
+    name,
   }));
 
 export const buildGatewayProviderForApp = (
@@ -222,10 +238,10 @@ export const buildGatewayProviderForApp = (
   if (appId === "opencode") {
     return baseProvider({
       npm: "@ai-sdk/openai-compatible",
-      name: GATEWAY_PROVIDER_NAME,
       options: {
         baseURL: GATEWAY_MODEL_BASE_URL,
         apiKey,
+        setCacheKey: true,
       },
       models: buildOpenCodeModels(models),
     });
@@ -237,6 +253,14 @@ export const buildGatewayProviderForApp = (
       apiKey,
       api: "openai-completions",
       models: buildOpenClawModels(models),
+    });
+  }
+
+  if (appId === "hermes") {
+    return baseProvider({
+      name: GATEWAY_PROVIDER_ID,
+      base_url: GATEWAY_MODEL_BASE_URL,
+      api_key: apiKey,
     });
   }
 

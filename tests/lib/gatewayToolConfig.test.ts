@@ -43,14 +43,15 @@ describe("THQ gateway tool config", () => {
     expect(String(provider.settingsConfig.config)).toContain(
       "[model_providers.custom]",
     );
-    expect(String(provider.settingsConfig.config)).toContain(
-      'name = "THQ"',
-    );
+    expect(String(provider.settingsConfig.config)).toContain('name = "custom"');
     expect(String(provider.settingsConfig.config)).toContain(
       'base_url = "https://sub.tohoqing.com/v1"',
     );
     expect(String(provider.settingsConfig.config)).toContain(
       'wire_api = "responses"',
+    );
+    expect(String(provider.settingsConfig.config)).toContain(
+      "disable_response_storage = true",
     );
   });
 
@@ -64,7 +65,60 @@ describe("THQ gateway tool config", () => {
     expect(config).not.toContain("model_context_window");
     expect(config).not.toContain("model_auto_compact_token_limit");
     expect(config).not.toContain("model_auto_compact_token_limit_scope");
-    expect(config).not.toContain("disable_response_storage");
+    expect(config).not.toContain("review_model");
+  });
+
+  it("matches OpenCode's default cache and model shape", () => {
+    const provider = buildGatewayProviderForApp("opencode", {
+      apiKey: "sk-thq",
+      models: [{ id: "gpt-5.5", name: "Gateway GPT", enabled: true }],
+    });
+
+    expect(provider.settingsConfig).toMatchObject({
+      npm: "@ai-sdk/openai-compatible",
+      options: {
+        baseURL: GATEWAY_MODEL_BASE_URL,
+        apiKey: "sk-thq",
+        setCacheKey: true,
+      },
+      models: {
+        "gpt-5.5": {
+          name: "Gateway GPT",
+        },
+      },
+    });
+  });
+
+  it("matches OpenClaw's default config shape", () => {
+    const provider = buildGatewayProviderForApp("openclaw", {
+      apiKey: "sk-thq",
+      models: [{ id: "gpt-5.5", name: "Gateway GPT", enabled: true }],
+    });
+
+    expect(provider.settingsConfig).toMatchObject({
+      baseUrl: GATEWAY_MODEL_BASE_URL,
+      apiKey: "sk-thq",
+      api: "openai-completions",
+      models: [
+        {
+          id: "gpt-5.5",
+          name: "Gateway GPT",
+        },
+      ],
+    });
+  });
+
+  it("matches Hermes' default config shape", () => {
+    const provider = buildGatewayProviderForApp("hermes", {
+      apiKey: "sk-thq",
+      models: [{ id: "gpt-5.5", name: "Gateway GPT", enabled: true }],
+    });
+
+    expect(provider.settingsConfig).toMatchObject({
+      name: "thq-gateway",
+      base_url: GATEWAY_MODEL_BASE_URL,
+      api_key: "sk-thq",
+    });
   });
 
   it("uses Claude Desktop proxy mode with safe role routes for gateway models", () => {
