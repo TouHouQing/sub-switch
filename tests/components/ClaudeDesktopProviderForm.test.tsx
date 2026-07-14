@@ -272,11 +272,11 @@ describe("ClaudeDesktopProviderForm", () => {
     renderForm(
       {
         name: "THQ Gateway",
-        websiteUrl: "https://sub.tohoqing.com",
+        websiteUrl: "https://sub.thqllm.com",
         category: "aggregator",
         settingsConfig: {
           env: {
-            ANTHROPIC_BASE_URL: "https://sub.tohoqing.com/v1",
+            ANTHROPIC_BASE_URL: "https://sub.thqllm.com/v1",
             ANTHROPIC_AUTH_TOKEN: "sk-thq",
           },
         },
@@ -312,7 +312,7 @@ describe("ClaudeDesktopProviderForm", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       name: "THQ Gateway",
-      websiteUrl: "https://sub.tohoqing.com",
+      websiteUrl: "https://sub.thqllm.com",
       icon: "openai",
       iconColor: "#0EA5E9",
       presetCategory: "aggregator",

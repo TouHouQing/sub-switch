@@ -5800,7 +5800,7 @@ dependencies = [
 
 [[package]]
 name = "thq-switch"
-version = "3.16.30"
+version = "3.16.31"
 dependencies = [
  "anyhow",
  "arboard",

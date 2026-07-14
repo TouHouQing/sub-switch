@@ -9,7 +9,7 @@ on:
       release_tag:
         description: 'Tag to package and publish'
         required: true
-        default: 'v3.16.27'
+        default: 'v3.16.31'
 
 permissions:
   contents: write
@@ -287,7 +287,7 @@ jobs:
           body: |
             ## THQ 中转站客户端
 
-            固定使用你的 AI 中转站：[sub.tohoqing.com](https://sub.tohoqing.com)
+            固定使用你的 AI 中转站：[sub.thqllm.com](https://sub.thqllm.com)
 
             ### 下载
 

@@ -218,9 +218,9 @@ describe("EditProviderDialog", () => {
           OPENAI_API_KEY: "sk-thq",
         },
         config:
-          'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
+          'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.thqllm.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
       },
-      websiteUrl: "https://sub.tohoqing.com",
+      websiteUrl: "https://sub.thqllm.com",
       icon: "openai",
     };
 

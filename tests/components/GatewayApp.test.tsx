@@ -254,7 +254,7 @@ describe("GatewayApp", () => {
         name: "THQ Gateway",
         settingsConfig: {
           env: {
-            ANTHROPIC_BASE_URL: "https://sub.tohoqing.com/v1",
+            ANTHROPIC_BASE_URL: "https://sub.thqllm.com/v1",
             ANTHROPIC_AUTH_TOKEN: "sk-thq",
             ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.5",
           },

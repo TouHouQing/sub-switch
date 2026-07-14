@@ -27,7 +27,7 @@ describe("THQ gateway tool config", () => {
       expect(provider.id).toBe("thq-gateway");
       expect(serialized).toContain(GATEWAY_MODEL_BASE_URL);
       expect(serialized).toContain("sk-thq");
-      expect(serialized).not.toContain("https://sub.tohoqing.com/api/v1");
+      expect(serialized).not.toContain("https://sub.thqllm.com/api/v1");
     },
   );
 
@@ -45,7 +45,7 @@ describe("THQ gateway tool config", () => {
     );
     expect(String(provider.settingsConfig.config)).toContain('name = "custom"');
     expect(String(provider.settingsConfig.config)).toContain(
-      'base_url = "https://sub.tohoqing.com/v1"',
+      'base_url = "https://sub.thqllm.com/v1"',
     );
     expect(String(provider.settingsConfig.config)).toContain(
       'wire_api = "responses"',

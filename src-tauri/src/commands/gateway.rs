@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::str::FromStr;
 
-const GATEWAY_ORIGIN: &str = "https://sub.tohoqing.com";
+const GATEWAY_ORIGIN: &str = "https://sub.thqllm.com";
 const ERROR_BODY_MAX_CHARS: usize = 512;
 
 #[derive(Debug, Serialize)]

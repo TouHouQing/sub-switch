@@ -16,9 +16,9 @@ import {
 
 describe("gateway constants", () => {
   it("keeps management and model API bases separate", () => {
-    expect(GATEWAY_ORIGIN).toBe("https://sub.tohoqing.com");
-    expect(GATEWAY_MANAGEMENT_BASE_URL).toBe("https://sub.tohoqing.com/api/v1");
-    expect(GATEWAY_MODEL_BASE_URL).toBe("https://sub.tohoqing.com/v1");
+    expect(GATEWAY_ORIGIN).toBe("https://sub.thqllm.com");
+    expect(GATEWAY_MANAGEMENT_BASE_URL).toBe("https://sub.thqllm.com/api/v1");
+    expect(GATEWAY_MODEL_BASE_URL).toBe("https://sub.thqllm.com/v1");
     expect(GATEWAY_MODEL_BASE_URL).not.toContain("/api/v1");
   });
 });

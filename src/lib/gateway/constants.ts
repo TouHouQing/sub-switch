@@ -1,4 +1,4 @@
-export const GATEWAY_ORIGIN = "https://sub.tohoqing.com";
+export const GATEWAY_ORIGIN = "https://sub.thqllm.com";
 export const GATEWAY_MANAGEMENT_BASE_URL = `${GATEWAY_ORIGIN}/api/v1`;
 export const GATEWAY_MODEL_BASE_URL = `${GATEWAY_ORIGIN}/v1`;
 export const GATEWAY_SESSION_STORAGE_KEY = "thq-gateway-session-v1";

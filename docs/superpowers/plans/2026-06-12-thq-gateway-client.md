@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Convert the current custom-provider switcher into a THQ AI Gateway desktop client for `sub.tohoqing.com` with login/register, balance, usage, tokens, models, recharge, records, orders, and fixed local tool configuration.
+**Goal:** Convert the current custom-provider switcher into a THQ AI Gateway desktop client for `sub.thqllm.com` with login/register, balance, usage, tokens, models, recharge, records, orders, and fixed local tool configuration.
 
 **Architecture:** Add a focused gateway client layer beside the existing Tauri/provider system, then make the React app default to a gateway dashboard. The gateway layer owns THQ account/session, management API calls, key selection, dashboard data, payment/order data, and fixed provider generation; existing provider APIs remain the write path for local tool configuration.
 
@@ -12,12 +12,12 @@
 
 ## Confirmed Boundaries
 
-- Management API base: `https://sub.tohoqing.com/api/v1`
-- Model request base URL for local tools and model probes: `https://sub.tohoqing.com/v1`
+- Management API base: `https://sub.thqllm.com/api/v1`
+- Model request base URL for local tools and model probes: `https://sub.thqllm.com/v1`
 - No automatic API key creation after login.
 - Default selected API key is the first key returned from `/keys`.
 - If no key exists, show an empty state with a user-triggered create-key action.
-- Fixed tool provider generation must never write `https://sub.tohoqing.com/api/v1` as a model base URL.
+- Fixed tool provider generation must never write `https://sub.thqllm.com/api/v1` as a model base URL.
 - Existing provider CRUD and arbitrary custom `base_url` controls are removed from the primary flow and kept only as an advanced path if retained.
 
 ## File Structure Map
@@ -82,8 +82,8 @@ import {
 
 describe("gateway normalizers", () => {
   it("keeps management and model API bases separate", () => {
-    expect(GATEWAY_MANAGEMENT_BASE_URL).toBe("https://sub.tohoqing.com/api/v1");
-    expect(GATEWAY_MODEL_BASE_URL).toBe("https://sub.tohoqing.com/v1");
+    expect(GATEWAY_MANAGEMENT_BASE_URL).toBe("https://sub.thqllm.com/api/v1");
+    expect(GATEWAY_MODEL_BASE_URL).toBe("https://sub.thqllm.com/v1");
     expect(GATEWAY_MODEL_BASE_URL).not.toContain("/api/v1");
   });
 
@@ -159,7 +159,7 @@ Expected: FAIL because `@/lib/gateway/normalizers` and `@/lib/gateway/constants`
 Create `src/lib/gateway/constants.ts`:
 
 ```ts
-export const GATEWAY_ORIGIN = "https://sub.tohoqing.com";
+export const GATEWAY_ORIGIN = "https://sub.thqllm.com";
 export const GATEWAY_MANAGEMENT_BASE_URL = `${GATEWAY_ORIGIN}/api/v1`;
 export const GATEWAY_MODEL_BASE_URL = `${GATEWAY_ORIGIN}/v1`;
 export const GATEWAY_SESSION_STORAGE_KEY = "thq-gateway-session-v1";
@@ -551,7 +551,7 @@ describe("GatewayApiClient", () => {
     await client.keys();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/keys",
+      "https://sub.thqllm.com/api/v1/keys",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer access-1",
@@ -566,7 +566,7 @@ describe("GatewayApiClient", () => {
     await client.modelsWithApiKey("sk-test");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/v1/models",
+      "https://sub.thqllm.com/v1/models",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer sk-test",
@@ -591,7 +591,7 @@ describe("GatewayApiClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://sub.tohoqing.com/api/v1/auth/refresh",
+      "https://sub.thqllm.com/api/v1/auth/refresh",
       expect.any(Object),
     );
     expect(session?.accessToken).toBe("access-2");
@@ -1289,7 +1289,7 @@ describe("THQ gateway tool config", () => {
     expect(provider.id).toBe("thq-gateway");
     expect(serialized).toContain(GATEWAY_MODEL_BASE_URL);
     expect(serialized).toContain("sk-thq");
-    expect(serialized).not.toContain("https://sub.tohoqing.com/api/v1");
+    expect(serialized).not.toContain("https://sub.thqllm.com/api/v1");
   });
 
   it("uses responses wire api for Codex", () => {
@@ -1298,7 +1298,7 @@ describe("THQ gateway tool config", () => {
       models: [],
     });
     expect(String(provider.settingsConfig.config)).toContain(
-      'base_url = "https://sub.tohoqing.com/v1"',
+      'base_url = "https://sub.thqllm.com/v1"',
     );
     expect(String(provider.settingsConfig.config)).toContain('wire_api = "responses"');
   });
@@ -1348,7 +1348,7 @@ const baseProvider = (settingsConfig: Provider["settingsConfig"]): Provider => (
   id: GATEWAY_PROVIDER_ID,
   name: GATEWAY_PROVIDER_NAME,
   settingsConfig,
-  websiteUrl: "https://sub.tohoqing.com",
+  websiteUrl: "https://sub.thqllm.com",
   category: "aggregator",
   icon: "openai",
   iconColor: "#0ea5e9",
@@ -1777,7 +1777,7 @@ describe("GatewayDashboard", () => {
     expect(screen.getByText("THQ")).toBeInTheDocument();
     expect(screen.getByText("账户余额")).toBeInTheDocument();
     expect(screen.getByText("今日 Tokens")).toBeInTheDocument();
-    expect(screen.getByText("https://sub.tohoqing.com/v1")).toBeInTheDocument();
+    expect(screen.getByText("https://sub.thqllm.com/v1")).toBeInTheDocument();
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
   });
 
@@ -2845,7 +2845,7 @@ Open `http://127.0.0.1:51402/` in the in-app Browser. Verify:
 
 - Logged-out view shows the THQ Gateway login/register screen.
 - After a mocked or real login, the dashboard first viewport visually matches the approved screenshot structure: top action buttons, central green status button, four metrics, available models below.
-- The visible model base URL is exactly `https://sub.tohoqing.com/v1`.
+- The visible model base URL is exactly `https://sub.thqllm.com/v1`.
 - The primary flow does not show arbitrary custom `base_url` fields.
 - Text does not overlap at 1000x768 and 1440x900.
 
@@ -2862,7 +2862,7 @@ Resize Browser to a narrow viewport or use responsive mode. Verify:
 
 Run: `pnpm vitest run tests/lib/gatewayToolConfig.test.ts`
 
-Expected: PASS with assertions proving provider configs include `https://sub.tohoqing.com/v1` and exclude `https://sub.tohoqing.com/api/v1`.
+Expected: PASS with assertions proving provider configs include `https://sub.thqllm.com/v1` and exclude `https://sub.thqllm.com/api/v1`.
 
 - [ ] **Step 7: Commit fixes from verification**
 

@@ -146,9 +146,9 @@ describe("GatewayDashboard", () => {
   it("omits fixed-gateway and current-view wording from the dashboard", () => {
     render(<GatewayDashboard {...baseProps()} />);
 
-    expect(screen.queryByText("固定 sub.tohoqing.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("固定 sub.thqllm.com")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("只使用 sub.tohoqing.com"),
+      screen.queryByText("只使用 sub.thqllm.com"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/当前查看/)).not.toBeInTheDocument();
   });

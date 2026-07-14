@@ -73,13 +73,13 @@ const renderForm = (
         onCancel={vi.fn()}
         initialData={{
           name: "THQ Gateway",
-          websiteUrl: "https://sub.tohoqing.com",
+          websiteUrl: "https://sub.thqllm.com",
           notes: "hidden",
           category: "aggregator",
         settingsConfig: {
           auth: { OPENAI_API_KEY: "sk-thq" },
           config:
-            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
+            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.thqllm.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
           modelCatalog: {
             models: [
               {
@@ -132,13 +132,13 @@ describe("ProviderForm tool route advanced mode", () => {
       showButtons: true,
       initialData: {
         name: "THQ Gateway",
-        websiteUrl: "https://sub.tohoqing.com",
+        websiteUrl: "https://sub.thqllm.com",
         notes: "hidden",
         category: "aggregator",
         settingsConfig: {
           auth: { OPENAI_API_KEY: "sk-thq" },
           config:
-            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.tohoqing.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
+            'model_provider = "custom"\n[model_providers.custom]\nname = "THQ"\nbase_url = "https://sub.thqllm.com/v1"\nwire_api = "responses"\nrequires_openai_auth = true\n',
         },
         icon: "openai",
         iconColor: "#0EA5E9",
@@ -172,7 +172,7 @@ describe("ProviderForm tool route advanced mode", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       name: "THQ Gateway",
-      websiteUrl: "https://sub.tohoqing.com",
+      websiteUrl: "https://sub.thqllm.com",
       notes: "hidden",
       icon: "openai",
       iconColor: "#0EA5E9",
@@ -203,12 +203,12 @@ describe("ProviderForm tool route advanced mode", () => {
       appId: "opencode",
       initialData: {
         name: "THQ Gateway",
-        websiteUrl: "https://sub.tohoqing.com",
+        websiteUrl: "https://sub.thqllm.com",
         category: "aggregator",
         settingsConfig: {
           npm: "@ai-sdk/openai-compatible",
           options: {
-            baseURL: "https://sub.tohoqing.com/v1",
+            baseURL: "https://sub.thqllm.com/v1",
             apiKey: "sk-thq",
           },
           models: {},

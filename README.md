@@ -1,8 +1,8 @@
 # THQ Switch
 
-`THQ Switch` 是为 [sub.tohoqing.com](https://sub.tohoqing.com) 中转站配套开发的专用桌面客户端。
+`THQ Switch` 是为 [sub.thqllm.com](https://sub.thqllm.com) 中转站配套开发的专用桌面客户端。
 
-它的目标很简单：让用户不再手动复制 API Key、修改各种配置文件，而是在一个界面里完成登录、注册、查看额度、管理 Key，并把 `sub.tohoqing.com` 的中转配置一键写入本地 AI 工具。
+它的目标很简单：让用户不再手动复制 API Key、修改各种配置文件，而是在一个界面里完成登录、注册、查看额度、管理 Key，并把 `sub.thqllm.com` 的中转配置一键写入本地 AI 工具。
 
 适合已经在使用或准备使用 THQ 中转站的用户，尤其是 Claude Code、Claude Desktop、Codex、Gemini CLI、OpenCode、OpenClaw、Hermes 等工具的日常使用者。
 
@@ -21,8 +21,8 @@
 
 本客户端默认服务于：
 
-- 官网和账号中心：[https://sub.tohoqing.com](https://sub.tohoqing.com)
-- API Base URL：`https://sub.tohoqing.com/v1`
+- 官网和账号中心：[https://sub.thqllm.com](https://sub.thqllm.com)
+- API Base URL：`https://sub.thqllm.com/v1`
 
 软件内置流程会围绕这个中转站进行登录、注册、验证码、API Key 和本地工具配置写入。
 
@@ -77,7 +77,7 @@ chmod +x THQ-Switch-*.AppImage
 ## 第一次使用
 
 1. 打开 THQ Switch。
-2. 在登录页输入 `sub.tohoqing.com` 账号邮箱和密码。
+2. 在登录页输入 `sub.thqllm.com` 账号邮箱和密码。
 3. 如果没有账号，点击“注册账号”。
 4. 注册时填写邮箱和密码，点击注册后进入邮箱验证。
 5. 点击发送验证码，去邮箱查看验证码。
@@ -128,7 +128,7 @@ chmod +x THQ-Switch-*.AppImage
 - 如果收不到验证码，先检查垃圾邮件箱。
 - 修改工具配置后，重启对应 CLI 或终端窗口。
 - 如果 API Key 不可用，重新创建一个 Key 后再写入配置。
-- 如果网络请求失败，先确认能正常访问 [sub.tohoqing.com](https://sub.tohoqing.com)。
+- 如果网络请求失败，先确认能正常访问 [sub.thqllm.com](https://sub.thqllm.com)。
 
 ## 截图
 

@@ -12,7 +12,7 @@ use crate::error::AppError;
 use crate::store::AppState;
 
 const TEMPLATE_TYPE_OFFICIAL_SUBSCRIPTION: &str = "official_subscription";
-const OFFICIAL_WEBSITE_URL: &str = "https://sub.tohoqing.com";
+const OFFICIAL_WEBSITE_URL: &str = "https://sub.thqllm.com";
 const H_TIER_NAMES: &[&str] = &[crate::services::subscription::TIER_FIVE_HOUR];
 const W_TIER_NAMES: &[&str] = &[
     crate::services::subscription::TIER_WEEKLY_LIMIT,

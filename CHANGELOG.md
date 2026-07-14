@@ -5,6 +5,12 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.31] - 2026-07-14
+
+### Changed
+
+- Migrated the fixed THQ Gateway management and model endpoints, desktop host allowlist, tests, documentation, and GitHub release copy to `sub.thqllm.com`.
+
 ## [3.16.2] - 2026-06-07
 
 Development since v3.16.1 focuses on broadening data portability and usage observability — S3-compatible cloud sync, OpenCode session usage import, and an opt-in official-subscription quota template — while hardening Codex Chat Completions routing (stream truncation, `tool_choice` / custom-tool / reasoning-token edge cases, file and audio attachments, and a Codex CLI models endpoint), strengthening proxy robustness (ephemeral ports, takeover/placeholder restore, system-message normalization, clearer upstream errors, and a text-only image fallback), fixing coding-plan quota lookups (Zhipu, MiniMax) and several Windows/macOS issues, adding the CherryIN and ZenMux providers, and refreshing the user manual.

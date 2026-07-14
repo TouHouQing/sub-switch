@@ -4,7 +4,7 @@ Date: 2026-06-12
 
 ## Goal
 
-Convert the current multi-provider switcher into a desktop client for the THQ AI API Gateway at `sub.tohoqing.com`.
+Convert the current multi-provider switcher into a desktop client for the THQ AI API Gateway at `sub.thqllm.com`.
 
 The app should feel like a native control panel for the user's gateway account: users can register, log in, see balance and usage, inspect available models, recharge, review usage records, view orders, and apply the selected API key to supported local AI tools. Custom provider `base_url` editing is removed from the primary user flow.
 
@@ -12,8 +12,8 @@ The app should feel like a native control panel for the user's gateway account: 
 
 - Product direction: platform client, not only a light rebrand.
 - Account mode: users register and log in with the THQ gateway account.
-- Management API base: `https://sub.tohoqing.com/api/v1`.
-- Model request base URL: `https://sub.tohoqing.com/v1`.
+- Management API base: `https://sub.thqllm.com/api/v1`.
+- Model request base URL: `https://sub.thqllm.com/v1`.
 - API key selection: after login, load the user's keys and default to the first key.
 - Empty key state: if the account has no API key, show an empty state and a create-key action. Do not auto-create keys.
 - Recharge: support native order creation where practical, with browser handoff for payment pages and complex callbacks.
@@ -47,12 +47,12 @@ Existing provider CRUD, provider presets, and custom endpoint forms are hidden f
 The app uses two separate gateway addresses:
 
 1. Management API:
-   `https://sub.tohoqing.com/api/v1`
+   `https://sub.thqllm.com/api/v1`
 
    Used for account, dashboard, keys, usage records, orders, plans, payment setup, and available channel metadata.
 
 2. Model API:
-   `https://sub.tohoqing.com/v1`
+   `https://sub.thqllm.com/v1`
 
    Used by local AI tools and OpenAI-compatible runtime requests, including `/v1/models`.
 
@@ -106,7 +106,7 @@ Key management supports listing, creating, refreshing, selecting, copying, and d
 - `GET /keys`
 - `GET /channels/available`
 
-If channel metadata is disabled or unavailable, the model list can fall back to `GET https://sub.tohoqing.com/v1/models` with the selected API key.
+If channel metadata is disabled or unavailable, the model list can fall back to `GET https://sub.thqllm.com/v1/models` with the selected API key.
 
 ### Key Management
 
@@ -147,7 +147,7 @@ The app can create an order natively, then open the external browser for provide
 
 All local tool configuration uses:
 
-- Base URL: `https://sub.tohoqing.com/v1`
+- Base URL: `https://sub.thqllm.com/v1`
 - API key: the selected THQ gateway key
 
 The app writes tool config through the existing adapter system where possible:
@@ -190,7 +190,7 @@ Manual verification:
 - Login and logout.
 - Dashboard cards load.
 - No-key account shows empty state.
-- Key selection writes the fixed `https://sub.tohoqing.com/v1` base URL.
+- Key selection writes the fixed `https://sub.thqllm.com/v1` base URL.
 - Usage records and order pages load.
 - Recharge order creation opens the correct external payment flow.
 

@@ -53,7 +53,7 @@ describe("GatewayApiClient", () => {
     await client.keys();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/keys",
+      "https://sub.thqllm.com/api/v1/keys",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer access-1",
@@ -73,7 +73,7 @@ describe("GatewayApiClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://sub.tohoqing.com/api/v1/keys",
+      "https://sub.thqllm.com/api/v1/keys",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -90,7 +90,7 @@ describe("GatewayApiClient", () => {
     await client.updateKey("key-1", { groupId: "456" });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/keys/key-1",
+      "https://sub.thqllm.com/api/v1/keys/key-1",
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ group_id: 456 }),
@@ -124,7 +124,7 @@ describe("GatewayApiClient", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/groups/available",
+      "https://sub.thqllm.com/api/v1/groups/available",
       expect.any(Object),
     );
   });
@@ -144,7 +144,7 @@ describe("GatewayApiClient", () => {
     const profile = await client.profile();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/user/profile",
+      "https://sub.thqllm.com/api/v1/user/profile",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer access-1",
@@ -165,7 +165,7 @@ describe("GatewayApiClient", () => {
     await client.me();
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://sub.tohoqing.com/api/v1/user/profile",
+      "https://sub.thqllm.com/api/v1/user/profile",
     );
   });
 
@@ -175,7 +175,7 @@ describe("GatewayApiClient", () => {
     await client.sendRegisterVerificationCode("new@tohoqing.com");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/auth/send-verify-code",
+      "https://sub.thqllm.com/api/v1/auth/send-verify-code",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -191,7 +191,7 @@ describe("GatewayApiClient", () => {
     await client.sendRegisterVerificationCode("  new@tohoqing.com\u200b ");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/auth/send-verify-code",
+      "https://sub.thqllm.com/api/v1/auth/send-verify-code",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -219,7 +219,7 @@ describe("GatewayApiClient", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/auth/register",
+      "https://sub.thqllm.com/api/v1/auth/register",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -241,7 +241,7 @@ describe("GatewayApiClient", () => {
     await client.modelsWithApiKey("sk-test");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/v1/models",
+      "https://sub.thqllm.com/v1/models",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer sk-test",
@@ -280,12 +280,12 @@ describe("GatewayApiClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://sub.tohoqing.com/api/v1/usage/dashboard/stats",
+      "https://sub.thqllm.com/api/v1/usage/dashboard/stats",
       expect.any(Object),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://sub.tohoqing.com/api/v1/user/profile",
+      "https://sub.thqllm.com/api/v1/user/profile",
       expect.any(Object),
     );
   });
@@ -315,7 +315,7 @@ describe("GatewayApiClient", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/payment/orders",
+      "https://sub.thqllm.com/api/v1/payment/orders",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -325,7 +325,7 @@ describe("GatewayApiClient", () => {
           is_mobile: false,
           payment_source: "hosted_redirect",
           plan_id: "plan-1",
-          return_url: "https://sub.tohoqing.com/payment/result",
+          return_url: "https://sub.thqllm.com/payment/result",
         }),
       }),
     );
@@ -355,7 +355,7 @@ describe("GatewayApiClient", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/payment/orders",
+      "https://sub.thqllm.com/api/v1/payment/orders",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -364,7 +364,7 @@ describe("GatewayApiClient", () => {
           order_type: "balance",
           is_mobile: false,
           payment_source: "hosted_redirect",
-          return_url: "https://sub.tohoqing.com/payment/result",
+          return_url: "https://sub.thqllm.com/payment/result",
         }),
       }),
     );
@@ -397,7 +397,7 @@ describe("GatewayApiClient", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/payment/orders",
+      "https://sub.thqllm.com/api/v1/payment/orders",
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"is_mobile":false'),
@@ -429,7 +429,7 @@ describe("GatewayApiClient", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/payment/checkout-info",
+      "https://sub.thqllm.com/api/v1/payment/checkout-info",
       expect.any(Object),
     );
   });
@@ -450,14 +450,14 @@ describe("GatewayApiClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://sub.tohoqing.com/api/v1/auth/refresh",
+      "https://sub.thqllm.com/api/v1/auth/refresh",
       expect.objectContaining({
         method: "POST",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      "https://sub.tohoqing.com/api/v1/keys",
+      "https://sub.thqllm.com/api/v1/keys",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer access-2",
@@ -488,12 +488,12 @@ describe("GatewayApiClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://sub.tohoqing.com/api/v1/auth/refresh",
+      "https://sub.thqllm.com/api/v1/auth/refresh",
       expect.any(Object),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://sub.tohoqing.com/api/v1/keys",
+      "https://sub.thqllm.com/api/v1/keys",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer fresh-access",
@@ -532,7 +532,7 @@ describe("GatewayApiClient", () => {
 
     expect(session).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://sub.tohoqing.com/api/v1/auth/refresh",
+      "https://sub.thqllm.com/api/v1/auth/refresh",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -593,7 +593,7 @@ describe("GatewayApiClient", () => {
       .spyOn(globalThis, "fetch")
       .mockImplementation((input, init) => {
         const url = fetchInputUrl(input);
-        if (url.startsWith("https://sub.tohoqing.com")) {
+        if (url.startsWith("https://sub.thqllm.com")) {
           return Promise.reject(
             new Error("direct gateway fetch should not be used"),
           );
@@ -607,7 +607,7 @@ describe("GatewayApiClient", () => {
         async ({ request }) => {
           const body = (await request.json()) as Record<string, unknown>;
           expect(body).toMatchObject({
-            url: "https://sub.tohoqing.com/api/v1/auth/login",
+            url: "https://sub.thqllm.com/api/v1/auth/login",
             method: "POST",
             body: JSON.stringify({
               email: "owner@tohoqing.com",
@@ -649,7 +649,7 @@ describe("GatewayApiClient", () => {
     });
     expect(
       browserFetch.mock.calls.some(([input]) =>
-        fetchInputUrl(input).startsWith("https://sub.tohoqing.com"),
+        fetchInputUrl(input).startsWith("https://sub.thqllm.com"),
       ),
     ).toBe(false);
   });

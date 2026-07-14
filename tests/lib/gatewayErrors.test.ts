@@ -23,7 +23,7 @@ describe("getGatewayErrorMessage", () => {
   it("maps network gateway failures to a retryable connection message", () => {
     expect(
       getGatewayErrorMessage(
-        "Gateway request failed: error sending request for url (https://sub.tohoqing.com/api/v1/auth/logout)",
+        "Gateway request failed: error sending request for url (https://sub.thqllm.com/api/v1/auth/logout)",
         "logout",
       ),
     ).toBe("网络连接失败，请检查网络后重试");
